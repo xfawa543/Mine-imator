@@ -203,9 +203,11 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path '_out' -Force | Out-Null
           # Create the ZIP from the staged runtime directory.
+          # Compress-Archive is a cmdlet and never sets $LASTEXITCODE (it is
+          # $null in a fresh step session), so no exit-code guard here:
+          # -ErrorAction Stop turns any real failure into a terminating error.
           Compress-Archive -Path '_stage\mine-imator-windows-x64\*' `
-            -DestinationPath '_out\mine-imator-windows-x64.zip' -Force
-          if ($LASTEXITCODE -ne 0) { throw "Compress-Archive failed with exit code $LASTEXITCODE" }
+            -DestinationPath '_out\mine-imator-windows-x64.zip' -Force -ErrorAction Stop
           if (-not (Test-Path -LiteralPath '_out\mine-imator-windows-x64.zip')) { throw "ZIP was not created" }
           Write-Host "ZIP created: $((Get-Item '_out\mine-imator-windows-x64.zip').Length) bytes"
           pwsh -NoProfile -File '.github\scripts\check_artifact.ps1' `
