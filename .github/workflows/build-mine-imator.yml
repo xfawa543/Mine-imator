@@ -1,0 +1,228 @@
+# build-mine-imator.yml - manual Windows build pipeline for Mine-imator.
+#
+# Scope guarantees:
+# - Checks out ONLY this repository (xfawa543/Mine-imator). No other
+#   repository is cloned, vendored or compiled.
+# - Builds Mine-imator exclusively via its own scripts: Setup.ps1 (Qt source
+#   build + Release: CppGen -> CMake -> install). All other dependencies
+#   (FFmpeg, OpenSSL, x264, OpenAL, libzip import/static libs, jom, the
+#   CppGen binary) are already vendored inside CppProject/External and
+#   CppGen/Win64 - nothing else is downloaded except Strawberry Perl
+#   (chocolatey) and the Qt5 sources (code.qt.io, built by Setup.ps1 Qt).
+# - The uploaded artifact is ONLY the CMake install() output (runtime exe,
+#   vcomp140.dll, Data/Particles/Schematics resources) after passing the
+#   independent leak-audit script (.github/scripts/check_artifact.ps1).
+# - No source trees, build directories, .git, dependency caches, PDBs or
+#   XGraphics content are ever packaged.
+# - No releases are published; no repository content is modified by the run.
+
+name: build-mine-imator
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-mine-imator
+  cancel-in-progress: false
+
+jobs:
+  build-windows-x64:
+    name: Build Mine-imator (windows-x64)
+    runs-on: windows-2022
+    timeout-minutes: 330
+
+    env:
+      DEV_DIR: C:\Dev
+
+    steps:
+      - name: Checkout
+        # actions/checkout v4.4.0 (pinned to the tag's commit, verified via
+        # api.github.com/repos/actions/checkout/git/refs/tags/v4.4.0)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Record build environment
+        shell: pwsh
+        run: |
+          Write-Host "runner   : $env:RUNNER_OS / $env:ImageOS"
+          Write-Host "commit   : $(git rev-parse HEAD)"
+          $drive = Get-PSDrive C
+          Write-Host ("disk free: {0:N1} GB" -f ($drive.Free / 1GB))
+          Write-Host "cmake    : $(@(cmake --version)[0])"
+          Write-Host "git      : $((git --version))"
+
+      - name: Install Perl (Strawberry, required by Qt configure)
+        shell: pwsh
+        run: |
+          choco install strawberryperl -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "choco install strawberryperl failed with exit code $LASTEXITCODE" }
+          Add-Content -Path $env:GITHUB_PATH -Value 'C:\Strawberry\perl\bin'
+
+      - name: Restore cached Qt 5.15.19 (install tree only)
+        # actions/cache v4.3.0 (pinned to the tag's commit, verified via
+        # api.github.com/repos/actions/cache/git/refs/tags/v4.3.0)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: C:\Dev\Qt\5.15.19\install
+          key: qt-5.15.19-lts-lgpl-x64-msvc2022-v1
+
+      - name: Build Qt 5.15.19 (skipped only when the cached install fully validates)
+        shell: pwsh
+        run: |
+          # === QT-VALIDATE-FUNCTION-BEGIN ===
+          # Validates a Qt -prefix install against everything the project's
+          # CMake contract needs (CppProject/CMakeLists.txt: find_package(Qt5
+          # 5.15.19 EXACT CONFIG REQUIRED COMPONENTS Widgets Gui Network,
+          # PATHS DEV_DIR/Qt/5.15.19/install, NO_DEFAULT_PATH) + OpenGL via
+          # QtGui). Returns a list of problems; empty = valid.
+          function Test-QtInstall {
+              param([Parameter(Mandatory = $true)][string] $InstallDir)
+              $expectedVersion = '5.15.19'
+              $problems = @()
+              $qmake = Join-Path $InstallDir 'bin\qmake.exe'
+              if (-not (Test-Path -LiteralPath $qmake)) { return @('bin\qmake.exe missing') }
+              try {
+                  # Capture the full output before indexing: piping a native command
+              # into Select-Object -First 1 terminates the process (exit -1).
+              $ver = @(& $qmake -query QT_VERSION 2>$null)[0]
+                  $prefix = @(& $qmake -query QT_INSTALL_PREFIX 2>$null)[0]
+              } catch {
+                  return @("qmake.exe failed to execute: $($_.Exception.Message)")
+              }
+              if ($LASTEXITCODE -ne 0) { $problems += "qmake -query exited with code $LASTEXITCODE" }
+              if ($ver -ne $expectedVersion) { $problems += "QT_VERSION mismatch: got '$ver', expected '$expectedVersion'" }
+              $prefixNorm = ($prefix -replace '\\', '/').TrimEnd('/')
+              $installNorm = ($InstallDir -replace '\\', '/').TrimEnd('/')
+              if ($prefixNorm -ne $installNorm) { $problems += "QT_INSTALL_PREFIX mismatch: '$prefixNorm' vs '$installNorm'" }
+              # Headers (one canary per used module).
+              foreach ($rel in @('include\QtCore\QtCore', 'include\QtGui\QtGui',
+                                 'include\QtWidgets\QtWidgets', 'include\QtNetwork\QtNetwork')) {
+                  if (-not (Test-Path -LiteralPath (Join-Path $InstallDir $rel))) { $problems += "missing: $rel" }
+              }
+              # CMake CONFIG packages (what find_package(CONFIG) actually loads).
+              foreach ($mod in @('Qt5Core', 'Qt5Gui', 'Qt5Widgets', 'Qt5Network')) {
+                  if (-not (Test-Path -LiteralPath (Join-Path $InstallDir "lib\cmake\$mod\$($mod)Config.cmake"))) {
+                      $problems += "missing: lib\cmake\$mod\$($mod)Config.cmake"
+                  }
+              }
+              # Static link libraries (Release, x64).
+              foreach ($mod in @('Qt5Core', 'Qt5Gui', 'Qt5Widgets', 'Qt5Network')) {
+                  if (-not (Test-Path -LiteralPath (Join-Path $InstallDir "lib\$mod.lib"))) { $problems += "missing: lib\$mod.lib" }
+              }
+              return $problems
+          }
+          # === QT-VALIDATE-FUNCTION-END ===
+
+          $qtInstall = 'C:\Dev\Qt\5.15.19\install'
+          $qtBase = 'C:\Dev\Qt\5.15.19'
+
+          # Cache-miss is NOT cache-valid: an existing install dir is only
+          # trusted when the full validation passes.
+          $problems = @()
+          if (Test-Path -LiteralPath $qtInstall) { $problems = Test-QtInstall -InstallDir $qtInstall }
+          if ($problems.Count -eq 0) {
+              Write-Host "Cached Qt install validated (version, prefix, headers, CONFIG packages, static libs) - skipping Qt source build."
+              exit 0
+          }
+          Write-Host "Qt cache invalid - rebuilding:"
+          $problems | ForEach-Object { Write-Host "  - $_" }
+
+          # Delete ONLY the dedicated Qt cache directory, after verifying the
+          # normalized full path is exactly the expected one (never the repo,
+          # never user files).
+          $expectedBase = 'C:\Dev\Qt\5.15.19'
+          $fullBase = [System.IO.Path]::GetFullPath($qtBase)
+          if (-not $fullBase.Equals($expectedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+              throw "Refusing to delete an unexpected path: $fullBase"
+          }
+          Remove-Item -LiteralPath $fullBase -Recurse -Force
+          Write-Host "Removed invalid Qt cache at $fullBase - starting full Qt build."
+
+          .\Setup.ps1 Qt x64
+          if ($LASTEXITCODE -ne 0) { throw "Setup.ps1 Qt failed with exit code $LASTEXITCODE" }
+
+          # Post-build revalidation: the job terminates if the fresh install
+          # does not pass the same checks (Setup.ps1 already threw on its own
+          # failures; this catches semantic completeness).
+          $problems2 = Test-QtInstall -InstallDir $qtInstall
+          if ($problems2.Count -ne 0) {
+              $problems2 | ForEach-Object { Write-Host "  - $_" }
+              throw "Qt validation failed after a fresh build."
+          }
+          Write-Host "Fresh Qt install validated."
+
+      - name: Release build (CppGen -> CMake configure/build/install)
+        shell: pwsh
+        run: |
+          .\Setup.ps1 Release x64
+          if ($LASTEXITCODE -ne 0) { throw "Setup.ps1 Release failed with exit code $LASTEXITCODE" }
+          if (-not (Test-Path -LiteralPath 'CppProject\Generated')) { throw "CppGen did not produce CppProject\Generated" }
+
+      - name: Verify installed runtime
+        shell: pwsh
+        run: |
+          $exe = 'install\Mine-imator\Mine-imator.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Install did not produce $exe" }
+          Write-Host "exe found: $exe ($((Get-Item $exe).Length) bytes)"
+          Write-Host "Installed tree:"
+          Get-ChildItem -LiteralPath 'install\Mine-imator' | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - name: Stage artifact directory
+        shell: pwsh
+        run: |
+          $stage = '_stage\mine-imator-windows-x64'
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          # Copy the CMake install() output only (never the repo/build trees).
+          robocopy 'install\Mine-imator' $stage /E /NFL /NDL /NJH /NJS
+          if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }
+          $global:LASTEXITCODE = 0
+          # Short provenance README (generated at build time, not a repo file).
+          $readme = @(
+            'Mine-imator windows-x64 CI build',
+            "commit: $(git rev-parse HEAD)",
+            "built : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') UTC (GitHub Actions)",
+            'source: https://github.com/xfawa543/Mine-imator'
+          )
+          Set-Content -Path (Join-Path $stage 'README.txt') -Value $readme -Encoding UTF8
+          Write-Host "Staged: $stage"
+
+      - name: Leak audit + SHA-256 manifest + ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path '_out' -Force | Out-Null
+          pwsh -NoProfile -File '.github\scripts\check_artifact.ps1' `
+            -Dir '_stage\mine-imator-windows-x64' `
+            -Zip '_out\mine-imator-windows-x64.zip' `
+            -Manifest '_out\SHA256SUMS.txt'
+          if ($LASTEXITCODE -ne 0) { throw "Artifact leak audit FAILED with exit code $LASTEXITCODE - upload blocked." }
+          if (-not (Test-Path -LiteralPath '_out\mine-imator-windows-x64.zip')) { throw "ZIP was not created" }
+
+      - name: Upload runtime artifact (zip)
+        # actions/upload-artifact v4.6.2 (pinned to the tag's commit, verified
+        # via api.github.com/repos/actions/upload-artifact/git/refs/tags/v4.6.2)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mine-imator-windows-x64
+          path: _out/mine-imator-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Upload SHA-256 manifest (separate from the runtime zip)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mine-imator-windows-x64-manifest
+          path: _out/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Upload failure diagnostics (logs only, never sources)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: build-diagnostics
+          path: |
+            build-release/CMakeFiles/CMakeError.log
+            build-release/CMakeFiles/CMakeOutput.log
+          if-no-files-found: ignore
