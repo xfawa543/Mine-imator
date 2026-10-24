@@ -202,6 +202,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path '_out' -Force | Out-Null
+          # Create the ZIP from the staged runtime directory.
+          Compress-Archive -Path '_stage\mine-imator-windows-x64\*' `
+            -DestinationPath '_out\mine-imator-windows-x64.zip' -Force
+          if ($LASTEXITCODE -ne 0) { throw "Compress-Archive failed with exit code $LASTEXITCODE" }
+          if (-not (Test-Path -LiteralPath '_out\mine-imator-windows-x64.zip')) { throw "ZIP was not created" }
+          Write-Host "ZIP created: $((Get-Item '_out\mine-imator-windows-x64.zip').Length) bytes"
           pwsh -NoProfile -File '.github\scripts\check_artifact.ps1' `
             -Dir '_stage\mine-imator-windows-x64' `
             -Zip '_out\mine-imator-windows-x64.zip' `
