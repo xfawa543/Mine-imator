@@ -103,11 +103,12 @@ jobs:
                                  'include\QtWidgets\QtWidgets', 'include\QtNetwork\QtNetwork')) {
                   if (-not (Test-Path -LiteralPath (Join-Path $InstallDir $rel))) { $problems += "missing: $rel" }
               }
-              # CMake CONFIG packages (what find_package(CONFIG) actually loads).
-              foreach ($mod in @('Qt5Core', 'Qt5Gui', 'Qt5Widgets', 'Qt5Network')) {
-                  if (-not (Test-Path -LiteralPath (Join-Path $InstallDir "lib\cmake\$mod\$($mod)Config.cmake"))) {
-                      $problems += "missing: lib\cmake\$mod\$($mod)Config.cmake"
-                  }
+              # CMake CONFIG packages (what find_package(CONFIG) actually loads):
+              # the umbrella Qt5Config.cmake plus one per used module.
+              foreach ($rel in @('lib\cmake\Qt5\Qt5Config.cmake',
+                                 'lib\cmake\Qt5Core\Qt5CoreConfig.cmake', 'lib\cmake\Qt5Gui\Qt5GuiConfig.cmake',
+                                 'lib\cmake\Qt5Widgets\Qt5WidgetsConfig.cmake', 'lib\cmake\Qt5Network\Qt5NetworkConfig.cmake')) {
+                  if (-not (Test-Path -LiteralPath (Join-Path $InstallDir $rel))) { $problems += "missing: $rel" }
               }
               # Static link libraries (Release, x64).
               foreach ($mod in @('Qt5Core', 'Qt5Gui', 'Qt5Widgets', 'Qt5Network')) {
@@ -120,9 +121,11 @@ jobs:
           $qtInstall = 'C:\Dev\Qt\5.15.19\install'
           $qtBase = 'C:\Dev\Qt\5.15.19'
 
-          # Cache-miss is NOT cache-valid: an existing install dir is only
-          # trusted when the full validation passes.
-          $problems = @()
+          # CRITICAL: a cache MISS (no install directory) is NOT cache-valid.
+          # Only an existing install that passes the FULL validation may skip
+          # the source build; anything else (missing dir, missing files,
+          # version/prefix mismatch, broken qmake) takes the rebuild branch.
+          $problems = @('cache miss: no install directory present')
           if (Test-Path -LiteralPath $qtInstall) { $problems = Test-QtInstall -InstallDir $qtInstall }
           if ($problems.Count -eq 0) {
               Write-Host "Cached Qt install validated (version, prefix, headers, CONFIG packages, static libs) - skipping Qt source build."
@@ -139,11 +142,16 @@ jobs:
           if (-not $fullBase.Equals($expectedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
               throw "Refusing to delete an unexpected path: $fullBase"
           }
-          Remove-Item -LiteralPath $fullBase -Recurse -Force
+          Remove-Item -LiteralPath $fullBase -Recurse -Force -ErrorAction SilentlyContinue
           Write-Host "Removed invalid Qt cache at $fullBase - starting full Qt build."
 
+          # A cache miss legitimately has no directory to delete: tolerate it.
+          # Any *existing* cache content was already rejected above, so the
+          # deletion only ever clears the dedicated Qt cache directory.
           .\Setup.ps1 Qt x64
-          if ($LASTEXITCODE -ne 0) { throw "Setup.ps1 Qt failed with exit code $LASTEXITCODE" }
+          # Null-safe: a pure-cmdlet flow leaves $LASTEXITCODE unset; in CI the
+          # last native inside Setup.ps1 (jom install) sets it to 0 on success.
+          if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) { throw "Setup.ps1 Qt failed with exit code $LASTEXITCODE" }
 
           # Post-build revalidation: the job terminates if the fresh install
           # does not pass the same checks (Setup.ps1 already threw on its own
