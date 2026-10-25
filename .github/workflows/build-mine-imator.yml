@@ -122,46 +122,55 @@ jobs:
           $qtBase = 'C:\Dev\Qt\5.15.19'
 
           # CRITICAL: a cache MISS (no install directory) is NOT cache-valid.
-          # Only an existing install that passes the FULL validation may skip
-          # the source build; anything else (missing dir, missing files,
+          # Only an existing install that passes the FULL validation may reuse
+          # the cached Qt; anything else (missing dir, missing files,
           # version/prefix mismatch, broken qmake) takes the rebuild branch.
           $problems = @('cache miss: no install directory present')
           if (Test-Path -LiteralPath $qtInstall) { $problems = Test-QtInstall -InstallDir $qtInstall }
           if ($problems.Count -eq 0) {
-              Write-Host "Cached Qt install validated (version, prefix, headers, CONFIG packages, static libs) - skipping Qt source build."
-              exit 0
-          }
-          Write-Host "Qt cache invalid - rebuilding:"
-          $problems | ForEach-Object { Write-Host "  - $_" }
+              Write-Host "Cached Qt install validated (version, prefix, headers, CONFIG packages, static libs) - Setup.ps1 Qt will reuse it."
+          } else {
+              Write-Host "Qt cache invalid - rebuilding:"
+              $problems | ForEach-Object { Write-Host "  - $_" }
 
-          # Delete ONLY the dedicated Qt cache directory, after verifying the
-          # normalized full path is exactly the expected one (never the repo,
-          # never user files).
-          $expectedBase = 'C:\Dev\Qt\5.15.19'
-          $fullBase = [System.IO.Path]::GetFullPath($qtBase)
-          if (-not $fullBase.Equals($expectedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
-              throw "Refusing to delete an unexpected path: $fullBase"
+              # Delete ONLY the dedicated Qt cache directory, after verifying the
+              # normalized full path is exactly the expected one (never the repo,
+              # never user files).
+              $expectedBase = 'C:\Dev\Qt\5.15.19'
+              $fullBase = [System.IO.Path]::GetFullPath($qtBase)
+              if (-not $fullBase.Equals($expectedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+                  throw "Refusing to delete an unexpected path: $fullBase"
+              }
+              Remove-Item -LiteralPath $fullBase -Recurse -Force -ErrorAction SilentlyContinue
+              Write-Host "Removed invalid Qt cache at $fullBase - a full Qt build will run."
+              # A cache miss legitimately has no directory to delete: tolerate it.
+              # Any *existing* cache content was already rejected above, so the
+              # deletion only ever clears the dedicated Qt cache directory.
           }
-          Remove-Item -LiteralPath $fullBase -Recurse -Force -ErrorAction SilentlyContinue
-          Write-Host "Removed invalid Qt cache at $fullBase - starting full Qt build."
 
-          # A cache miss legitimately has no directory to delete: tolerate it.
-          # Any *existing* cache content was already rejected above, so the
-          # deletion only ever clears the dedicated Qt cache directory.
+          # ALWAYS run Setup.ps1 Qt:
+          # - its Ensure-SourceArchive preamble extracts the OpenSSL/FFmpeg/x264/
+          #   Libzip/OpenAL source archives into DEV_DIR. The Release step
+          #   REQUIRES those trees (CMake include dirs point into them) but its
+          #   own action never extracts them - that normally happens as a side
+          #   effect of the Qt action, which is skipped on a cache hit.
+          # - Build-Qt performs the full source build when the source tree is
+          #   absent (cache miss / invalid cache) and returns early when the
+          #   cached source tree is present (its interactive guard receives EOF
+          #   in CI, i.e. an answer that is not "yes" -> reuse the cached Qt).
           .\Setup.ps1 Qt x64
-          # Null-safe: a pure-cmdlet flow leaves $LASTEXITCODE unset; in CI the
-          # last native inside Setup.ps1 (jom install) sets it to 0 on success.
+          # Null-safe: a pure-cmdlet flow leaves $LASTEXITCODE unset.
           if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) { throw "Setup.ps1 Qt failed with exit code $LASTEXITCODE" }
 
-          # Post-build revalidation: the job terminates if the fresh install
-          # does not pass the same checks (Setup.ps1 already threw on its own
-          # failures; this catches semantic completeness).
+          # Post-run validation (both paths): the install must pass the full
+          # checks now - reuse and fresh build are held to the same standard.
+          if (-not (Test-Path -LiteralPath $qtInstall)) { throw "Qt install directory is missing after Setup.ps1 Qt." }
           $problems2 = Test-QtInstall -InstallDir $qtInstall
           if ($problems2.Count -ne 0) {
               $problems2 | ForEach-Object { Write-Host "  - $_" }
-              throw "Qt validation failed after a fresh build."
+              throw "Qt validation failed after Setup.ps1 Qt."
           }
-          Write-Host "Fresh Qt install validated."
+          Write-Host "Qt install validated (cached reuse or fresh build)."
 
       - name: Release build (CppGen -> CMake configure/build/install)
         shell: pwsh
