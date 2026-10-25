@@ -145,6 +145,9 @@ function app_update_animate()
 			break
 		}
 	}
+	// XGraphics animation bridge (EXPERIMENT): dump this frame's real camera
+	// and per-object matrices. Env-gated (XR_ANIM_DUMP); no-op by default.
+	xr_anim_dump_frame()
 	timeline_marker_previous = timeline_marker
 	
 	// Background
