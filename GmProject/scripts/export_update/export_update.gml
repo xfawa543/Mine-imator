@@ -112,6 +112,9 @@ function export_update()
 				error("errorexportmovie")
 				return 0
 			}
+			
+			// XR-EXPORT S1 (EXPERIMENT): env-gated per-frame export probe.
+			xr_export_probe()
 		}
 	
 		// Advance

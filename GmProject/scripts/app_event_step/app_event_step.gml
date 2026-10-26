@@ -17,6 +17,9 @@ function app_event_step()
 			window_debug_current = window_list[|2]
 	}
 	
+	// XR-EXPORT S1 (EXPERIMENT): env-gated deferred auto export trigger.
+	xr_auto_export_tick()
+	
 	app_update_window()
 	
 	if (window_mouse_is_active(window_get_current()))

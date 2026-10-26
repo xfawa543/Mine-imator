@@ -67,4 +67,7 @@ function app_startup_interface()
 		if (!file_exists_lib(settings_file))
 			popup_show(popup_welcome)
 	}
+	
+	// XR-EXPORT S1 (EXPERIMENT): env-gated auto project load + auto export.
+	xr_auto_export_startup()
 }
