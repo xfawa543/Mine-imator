@@ -41,26 +41,9 @@ function xr_geo_dump_one(f, dir, vbuffer, tag, tint)
 	var n = xr_vbuffer_save(vbuffer, fn, tint)
 	if (n < 0)
 		return 0
-	file_text_write_string(f, tag + " file=geo_" + string(vbuffer) + ".bin verts=" + string(n))
+	file_text_write_string(f, string(tag) + " file=geo_" + string(vbuffer) + ".bin verts=" + string(n))
 	file_text_writeln(f)
 	return 1
-}
-
-function xr_geo_dump_block_vbuffers(f, dir, blockVbuffer, tint)
-{
-	// block_vbuffer[e_block_depth, e_block_vbuffer] — 3 depths x 12 categories.
-	for (var d = 0; d < 3; d++)
-	{
-		for (var c = 0; c < 12; c++)
-		{
-			var vb = blockVbuffer[d, c]
-			if (vb = null)
-				continue
-			if (vbuffer_is_empty(vb))
-				continue
-			xr_geo_dump_one(f, dir, vb, "kind=block cat=" + string(d * 12 + c), tint)
-		}
-	}
 }
 
 function xr_geo_dump()
@@ -231,7 +214,7 @@ function xr_geo_dump_block_vbuffers_plain(f, dir, blockVbuffer, tlId, typeName)
 				continue
 			if (vbuffer_is_empty(vb))
 				continue
-			xr_geo_dump_one(f, dir, vb, "ITEM tl=" + tlId + " type=" + typeName + " kind=block cat=" + string(d * 12 + c), -1)
+			xr_geo_dump_one(f, dir, vb, "ITEM tl=" + string(tlId) + " type=" + string(typeName) + " kind=block cat=" + string(d * 12 + c), -1)
 		}
 	}
 }
