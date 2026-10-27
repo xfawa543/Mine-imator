@@ -3,9 +3,11 @@
 ///       Called from export_update() after a movie frame has been encoded,
 ///       so everything recorded here belongs to a COMPLETED export frame.
 ///       Enabled ONLY when the environment variable XR_EXPORT_PROBE is set
-///       (to anything other than "0"); otherwise returns immediately
+///       (to anything other than "0") AND XR_EXPORT_PROBE_DIR points to an
+///       existing or creatable directory; otherwise returns immediately
 ///       (zero behavior change, no file I/O).
-///       XR_EXPORT_PROBE_DIR    output directory (default: temp\xr_export_probe)
+///       XR_EXPORT_PROBE_DIR    output directory (REQUIRED — no fallback,
+///                              keeps the CppGen function set minimal)
 ///       XR_EXPORT_PROBE_EVERY  snapshot stride in frames (default 30)
 ///       Records per frame (probe.txt, append + close every frame):
 ///         F <frame> marker=<timeline_marker> size=<w>x<h> t=<ms since first frame>
@@ -21,11 +23,18 @@ function xr_export_probe()
 		return 0
 	if (xr_export_probe_on != 1)
 	{
-		xr_export_probe_on = 1
 		var d = environment_get_variable("XR_EXPORT_PROBE_DIR")
-		xr_export_probe_dir = (d = "" || string(d) = "-1" ? temp_directory + "xr_export_probe" : d)
-		if (!directory_exists(xr_export_probe_dir))
-			directory_create(xr_export_probe_dir)
+		if (d = "" || string(d) = "-1")
+			return 0
+		if (!directory_exists_lib(d))
+			directory_create_lib(d)
+		if (!directory_exists_lib(d))
+		{
+			log("XR export probe: cannot create dir", d)
+			return 0
+		}
+		xr_export_probe_on = 1
+		xr_export_probe_dir = d
 		var e2 = environment_get_variable("XR_EXPORT_PROBE_EVERY")
 		xr_export_probe_every = (e2 = "" || string(e2) = "-1" ? 30 : max(1, real(e2)))
 		xr_export_probe_t0 = current_time
