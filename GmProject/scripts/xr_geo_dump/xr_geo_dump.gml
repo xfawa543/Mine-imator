@@ -51,12 +51,60 @@ function xr_geo_dump()
 	var dir = environment_get_variable("XR_GEO_DUMP")
 	if (dir = "" || string(dir) = "-1")
 		return 0
-	if (xr_geo_dump_done = 1)
-		return 0
-	xr_geo_dump_done = 1
 	if (!is_cpp())
 		return 0 // C++ builds only (native vbuffer access)
 
+	// Static one-time geometry dump (ITEM lines + initial SHAPE lines).
+	if (xr_geo_dump_done != 1)
+	{
+		xr_geo_dump_done = 1
+		xr_geo_dump_static(dir)
+	}
+
+	// XR_GEO_ANIM=1: per-export-frame dump of BODYPART shape vbuffers
+	// (bent/deforming model parts animate the shape CONTENT, not the
+	// matrix_render — the static dump cannot capture them).
+	var anim = environment_get_variable("XR_GEO_ANIM")
+	if (anim = "" || string(anim) = "-1" || anim = "0")
+		return 0
+	return xr_geo_dump_anim_frame(dir)
+}
+
+function xr_geo_dump_anim_frame(dir)
+{
+	var fr = string(exportmovie_frame)
+	var f = file_text_open_append(dir + "/geo_anim_manifest.txt")
+	for (var i = 0; i < ds_list_size(render_list); i++)
+	{
+		var tl = render_list[|i]
+		if (tl.type != e_tl_type.BODYPART)
+			continue
+		if (!ds_exists(tl.model_shape_vbuffer_map, ds_type_map))
+			continue
+		var key = ds_map_find_first(tl.model_shape_vbuffer_map)
+		while (!is_undefined(key))
+		{
+			var vb = tl.model_shape_vbuffer_map[?key]
+			if (vb != null && !vbuffer_is_empty(vb))
+			{
+				var fn = "geo_f" + fr + "_" + string(vb) + ".bin"
+				var n = xr_vbuffer_save(vb, dir + "/" + fn, -1)
+				if (n >= 0)
+				{
+					var smat = xr_geo_dump_shape_matrix(tl, string_get_real(key))
+					file_text_write_string(f, "SHAPEF f=" + fr + " tl=" + string(tl) + " shape=" + string(key) + " mat=" + smat + " file=" + fn)
+					file_text_writeln(f)
+				}
+			}
+			key = ds_map_find_next(tl.model_shape_vbuffer_map, key)
+		}
+	}
+	file_text_close(f)
+	return 1
+}
+
+function xr_geo_dump_static(dir)
+{
 	if (!directory_exists_lib(dir))
 		directory_create_lib(dir)
 
