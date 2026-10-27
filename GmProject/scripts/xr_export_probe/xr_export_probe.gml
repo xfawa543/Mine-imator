@@ -38,12 +38,12 @@ function xr_export_probe()
 		var e2 = environment_get_variable("XR_EXPORT_PROBE_EVERY")
 		xr_export_probe_every = (e2 = "" || string(e2) = "-1" ? 30 : max(1, real(e2)))
 		xr_export_probe_t0 = current_time
-		var f = file_text_open_write(xr_export_probe_dir + "\probe.txt")
+		var f = file_text_open_write(xr_export_probe_dir + "/probe.txt")
 		file_text_write_string(f, "PROBE_ON every=" + string(xr_export_probe_every) + " video=" + string(project_video_width) + "x" + string(project_video_height))
 		file_text_writeln(f)
 		file_text_close(f)
 	}
-	var f = file_text_open_append(xr_export_probe_dir + "\probe.txt")
+	var f = file_text_open_append(xr_export_probe_dir + "/probe.txt")
 	file_text_write_string(f, "F " + string(exportmovie_frame) + " marker=" + string(timeline_marker) + " size=" + string(project_video_width) + "x" + string(project_video_height) + " t=" + string(current_time - xr_export_probe_t0))
 	file_text_writeln(f)
 	file_text_close(f)
@@ -51,7 +51,7 @@ function xr_export_probe()
 	{
 		var b = buffer_create(project_video_width * project_video_height * 4, buffer_fixed, 4)
 		buffer_get_surface(b, export_surface, 0)
-		buffer_save(b, xr_export_probe_dir + "\snap_" + string(exportmovie_frame) + ".bin")
+		buffer_save(b, xr_export_probe_dir + "/snap_" + string(exportmovie_frame) + ".bin")
 		buffer_delete(b)
 	}
 	return 1
