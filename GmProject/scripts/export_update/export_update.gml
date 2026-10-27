@@ -39,6 +39,9 @@ function export_update()
 			
 			// Update animations
 			app_update_animate()
+			
+			// XR-EXPORT S2 (EXPERIMENT): env-gated one-time geometry dump.
+			xr_geo_dump()
 		}
 	}
 	

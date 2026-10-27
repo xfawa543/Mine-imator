@@ -28,6 +28,7 @@ function lib_startup()
 	globalvar lib_directory_create, lib_directory_exists, lib_directory_delete;
 	globalvar lib_movie_init, lib_movie_set, lib_movie_start, lib_movie_audio_file_decode, lib_movie_audio_file_add, lib_movie_audio_sound_add, lib_movie_frame, lib_movie_done;
 	globalvar lib_window_maximize, lib_window_set_focus;
+	globalvar lib_xr_vbuffer_save;
 	
 	// Window library
 	log("External library", pathwindow)
@@ -49,6 +50,11 @@ function lib_startup()
 	lib_directory_delete = external_define(pathfile, "directory_delete", dll_cdecl, ty_real, 1, ty_string)
 	lib_directory_exists = external_define(pathfile, "directory_exists", dll_cdecl, ty_real, 1, ty_string)
 	lib_json_file_convert_unicode = external_define(pathfile, "json_file_convert_unicode", dll_cdecl, ty_real, 2, ty_string, ty_string)
+	
+	// XGraphics export bridge (EXPERIMENT, S2): C++ builds replace external_call
+	// with a direct call into Library/XrExportLib.cpp; GM builds would need a
+	// matching DLL export (not shipped).
+	lib_xr_vbuffer_save = external_define(pathfile, "xr_vbuffer_save", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_real)
 	
 	// Movie library
 	log("External library", pathmovie)
