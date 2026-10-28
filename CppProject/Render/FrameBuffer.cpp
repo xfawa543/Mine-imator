@@ -315,19 +315,6 @@ namespace CppProject
 		delete[] data;
 	}
 
-	// XR-EXPORT S3 (EXPERIMENT): GL implementation - upload RGBA8 top-down
-	// bytes into the color texture (see the D3D11 implementation above).
-	void FrameBuffer::PasteColorData(uchar* src)
-	{
-		if (!size.width() || !size.height() || hdr)
-			return;
-
-		GFX->glBindTexture(GL_TEXTURE_2D, glColorTexId);
-		GFX->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.width(), size.height(),
-			GL_RGBA, GL_UNSIGNED_BYTE, src);
-		GL_CHECK_ERROR();
-	}
-
 	IntType FrameBuffer::GetPixelSize(BoolType color) const
 	{
 		if (color)
