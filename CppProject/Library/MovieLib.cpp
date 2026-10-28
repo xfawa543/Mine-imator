@@ -28,6 +28,11 @@ extern "C"
 
 namespace CppProject
 {
+	// XR-EXPORT S3 (EXPERIMENT): declared in XrBridgeLoader.cpp. Returns true
+	// and fills dst (RGBA, w*h*4) with the xr bridge's rendered frame when
+	// one is pending; false = use the native surface readback below.
+	bool XrBridgeTakeFrame(uchar* dst, IntType w, IntType h);
+
 	// Media file output
 	AVFormatContext* outContext;
 
@@ -439,8 +444,12 @@ namespace CppProject
 			if (av_frame_get_buffer(videoFrame, 0) < 0)
 				throw "av_frame_get_buffer failed";
 
-			// Convert surface into frame
-			FindSurface(global::_app->export_surface)->frameBuffer->CopyColorData(videoFrameData);
+			// Convert surface into frame.
+			// XR-EXPORT S3 (EXPERIMENT): when the xr bridge rendered this
+			// frame (takeover mode), its pixels are already in dst and the
+			// native D3D11 surface was never rendered — pixel source swap.
+			if (!XrBridgeTakeFrame(videoFrameData, videoWidth, videoHeight))
+				FindSurface(global::_app->export_surface)->frameBuffer->CopyColorData(videoFrameData);
 			uint8_t* inData[1] = { videoFrameData }; // RGBA have one plane
 			int inLinesize[1] = { 4 * (int)videoWidth }; // RGBA stride
 			sws_scale(videoSwsContext, inData, inLinesize, 0, videoHeight, videoFrame->data, videoFrame->linesize);

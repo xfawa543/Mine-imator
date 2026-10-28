@@ -40,6 +40,7 @@ namespace CppProject
 	typedef void (*XrSetMatrixFn)(const double*);
 	typedef void (*XrDrawMeshFn)(const void*, int, int, const void*, int, int);
 	typedef int  (*XrEndFrameFn)(int);
+	typedef int  (*XrReadFrameFn)(uint8_t*, int, int);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -48,6 +49,7 @@ namespace CppProject
 	static XrSetMatrixFn s_setShape = nullptr;
 	static XrDrawMeshFn s_draw = nullptr;
 	static XrEndFrameFn s_end = nullptr;
+	static XrReadFrameFn s_read = nullptr;
 	static bool s_tried = false;
 	static int s_frameIndex = 0;
 
@@ -73,7 +75,8 @@ namespace CppProject
 		s_setShape = (XrSetMatrixFn)GetProcAddress(s_bridge, "xr_bridge_set_shape_matrix");
 		s_draw = (XrDrawMeshFn)GetProcAddress(s_bridge, "xr_bridge_draw_mesh");
 		s_end = (XrEndFrameFn)GetProcAddress(s_bridge, "xr_bridge_end_frame");
-		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end)
+		s_read = (XrReadFrameFn)GetProcAddress(s_bridge, "xr_bridge_read_frame");
+		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read)
 		{
 			s_bridge = nullptr;
 			return false;
@@ -191,6 +194,16 @@ namespace CppProject
 			queued++;
 		}
 		return (RealType)queued;
+	}
+
+	// S3: copies the pending xr frame into the encoder's RGBA buffer.
+	// Returns true when a bridge frame was consumed, false when the caller
+	// should fall back to the native surface readback.
+	bool XrBridgeTakeFrame(uchar* dst, IntType w, IntType h)
+	{
+		if (!s_read || !dst)
+			return false;
+		return s_read((uint8_t*)dst, (int)w, (int)h) != 0;
 	}
 
 	// Renders the queued frame, writes <prefix>\xr_<frame>.bmp, returns

@@ -12,14 +12,21 @@
 ///       output directory, and only in C++ builds.
 
 globalvar xr_bridge_ready
+globalvar xr_bridge_did_render
 
 function xr_bridge_frame()
 {
 	if (!is_cpp())
+	{
+		xr_bridge_did_render = false
 		return 0
+	}
 	var prefix = environment_get_variable("XR_BRIDGE")
 	if (prefix = "" || string(prefix) = "-1")
+	{
+		xr_bridge_did_render = false
 		return 0
+	}
 
 	// One-time init at export start (project video resolution).
 	if (xr_bridge_ready != 1)
@@ -29,6 +36,7 @@ function xr_bridge_frame()
 		{
 			log("XR bridge init failed (xr_bridge.dll missing next to exe?)")
 			xr_bridge_ready = 0
+			xr_bridge_did_render = false
 			return 0
 		}
 		xr_bridge_ready = 1
@@ -204,8 +212,12 @@ function xr_bridge_frame()
 		}
 	}
 
-	external_call(lib_xr_bridge_end_frame)
-	return 1
+	// S3: when the bridge rendered this frame, its pixels are handed to the
+	// in-process encoder via XrBridgeTakeFrame (MovieLib.cpp) and the
+	// native D3D11 render is skipped by export_update.
+	var ms = external_call(lib_xr_bridge_end_frame)
+	xr_bridge_did_render = (ms > 0)
+	return xr_bridge_did_render
 }
 
 function xr_bridge_draw_single(vb, m, tint)

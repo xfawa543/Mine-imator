@@ -2,6 +2,10 @@
 
 function export_update()
 {
+	// XR-EXPORT S3 (EXPERIMENT): true when the xr bridge rendered this frame
+	// and the native D3D11 render should be skipped (mp4 format only).
+	var xr_bridge_takeover = false
+
 	// Stop?
 	if (keyboard_check(vk_escape) && export_escape_time = 0)
 		export_escape_time = current_time
@@ -42,16 +46,29 @@ function export_update()
 			
 			// XR-EXPORT S2 (EXPERIMENT): env-gated one-time geometry dump.
 			xr_geo_dump()
-			// XR-EXPORT S2-B (EXPERIMENT): env-gated in-process xr render
-			// (writes BMPs via xr_bridge.dll when present; no-op otherwise).
+			// XR-EXPORT S2-B/S3 (EXPERIMENT): env-gated in-process xr render.
+			// When the bridge rendered this frame, its pixels go to the
+			// encoder (MovieLib pixel source swap) and the native D3D11
+			// render below is skipped entirely (takeover mode).
 			xr_bridge_frame()
+			xr_bridge_takeover = (xr_bridge_did_render && exportmovie_format != "png")
 		}
 	}
-	
+
 	if (window_state = "export_image")
 		app_update_cameras(popup_exportimage.high_quality, false)
-	
+
 	// Render
+	if (window_state = "export_movie" && xr_bridge_takeover)
+	{
+		// XR-EXPORT S3 (EXPERIMENT): xr frame already rendered in-process;
+		// mark the sample state done and fall through to the encoder.
+		render_active = null
+		render_samples = -1
+		render_samples_done = true
+	}
+	else
+	{
 	if (window_state = "export_movie")
 	{
 		render_active = "movie"
@@ -62,12 +79,12 @@ function export_update()
 		render_active = "image"
 		render_quality = (popup_exportimage.high_quality ? e_view_mode.RENDER : e_view_mode.SHADED)
 	}
-	
+
 	if (window_state = "export_movie" && exportmovie_format = "png")
 		render_start(export_surface, timeline_camera)
 	else
 		render_start(export_surface, timeline_camera, project_video_width, project_video_height)
-	
+
 	if (render_quality = e_view_mode.RENDER)
 		render_high()
 	else
@@ -75,19 +92,20 @@ function export_update()
 		render_low()
 		render_samples_done = true
 	}
-	
+
 	export_surface = render_done()
-	
+
 	export_sample++
-	
+
 	if (render_quality = e_view_mode.RENDER && render_samples = app.project_render_samples)
 		render_samples_done = true
-	
+
 	if (!render_samples_done)
 		return 1
-	
+
 	render_active = null
 	render_samples = -1
+	}
 	
 	// Save movie frame
 	if (window_state = "export_movie")
