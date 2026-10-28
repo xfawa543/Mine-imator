@@ -13,6 +13,7 @@
 
 globalvar xr_bridge_ready
 globalvar xr_bridge_did_render
+globalvar xr_bridge_takeover_active
 
 function xr_bridge_frame()
 {

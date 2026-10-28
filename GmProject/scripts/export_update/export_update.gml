@@ -52,6 +52,7 @@ function export_update()
 			// render below is skipped entirely (takeover mode).
 			xr_bridge_frame()
 			xr_bridge_takeover = (xr_bridge_did_render && exportmovie_format != "png")
+			xr_bridge_takeover_active = xr_bridge_takeover
 		}
 	}
 
@@ -63,12 +64,17 @@ function export_update()
 	{
 		// XR-EXPORT S3 (EXPERIMENT): xr frame already rendered in-process;
 		// mark the sample state done and fall through to the encoder.
+		if (!surface_exists(export_surface))
+			export_surface = surface_create(project_video_width, project_video_height)
 		render_active = null
 		render_samples = -1
 		render_samples_done = true
+		export_sample++
+		xr_bridge_takeover_active = true
 	}
 	else
 	{
+		xr_bridge_takeover_active = false
 	if (window_state = "export_movie")
 	{
 		render_active = "movie"

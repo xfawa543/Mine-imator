@@ -30,7 +30,14 @@ function window_draw_export()
 		totalsamples = totalframes
 	}
 	
-	perc = export_sample / totalsamples
+	// XR-EXPORT S3 (EXPERIMENT): in takeover mode the xr bridge renders one
+	// frame per export frame (no sample accumulation), so progress is the
+	// movie frame counter — export_sample/totalsamples would under-report
+	// with high_quality enabled and break the time-left estimate.
+	if (xr_bridge_takeover_active)
+		perc = exportmovie_frame / max(1, totalframes)
+	else
+		perc = export_sample / totalsamples
 	
 	content_width = floor(window_width * 0.5)
 	content_height = min(500, floor(window_height * 0.5))

@@ -30,6 +30,11 @@ namespace CppProject
 		// Copies the color data to the given destination with 8 bits for RGBA.
 		void CopyColorData(uchar* dst);
 
+		// XR-EXPORT S3 (EXPERIMENT): replaces the color data with the given
+		// RGBA bytes (8 bits, width*height*4, top-down). Used to feed an
+		// externally rendered frame into the surface for preview/encode.
+		void PasteColorData(uchar* src);
+
 		// Returns the total size in bytes for a single pixel of color or depth/stencil data.
 		IntType GetPixelSize(BoolType color) const;
 

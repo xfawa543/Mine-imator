@@ -448,7 +448,15 @@ namespace CppProject
 			// XR-EXPORT S3 (EXPERIMENT): when the xr bridge rendered this
 			// frame (takeover mode), its pixels are already in dst and the
 			// native D3D11 surface was never rendered — pixel source swap.
-			if (!XrBridgeTakeFrame(videoFrameData, videoWidth, videoHeight))
+			// The frame is also pasted into the export surface so the
+			// export window's preview shows the xr render.
+			if (XrBridgeTakeFrame(videoFrameData, videoWidth, videoHeight))
+			{
+				if (Surface* exportSurface = FindSurface(global::_app->export_surface))
+					if (exportSurface->frameBuffer)
+						exportSurface->frameBuffer->PasteColorData(videoFrameData);
+			}
+			else
 				FindSurface(global::_app->export_surface)->frameBuffer->CopyColorData(videoFrameData);
 			uint8_t* inData[1] = { videoFrameData }; // RGBA have one plane
 			int inLinesize[1] = { 4 * (int)videoWidth }; // RGBA stride

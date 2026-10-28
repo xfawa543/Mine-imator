@@ -143,6 +143,17 @@ namespace CppProject
 		D3DContext->Unmap(stagingTex, 0);
 		stagingTex->Release();
 	}
+
+	// XR-EXPORT S3 (EXPERIMENT): replaces the color texture contents with
+	// the given RGBA8 top-down bytes (see CopyColorData for the read side).
+	void FrameBuffer::PasteColorData(uchar* src)
+	{
+		if (!size.width() || !size.height() || GetPixelSize(true) != 4)
+			return;
+
+		D3DContext->UpdateSubresource(d3dColorTex, 0, nullptr, src,
+			4 * size.width(), 0);
+	}
 #else
 	FrameBuffer::~FrameBuffer()
 	{
@@ -302,6 +313,19 @@ namespace CppProject
 			for (IntType i = 0; i < 4; i++)
 				dst[(y * size.width() + x) * 4 + i] = std::clamp(data[(y * size.width() + x) * 4 + i], 0.f, 1.f) * 255;
 		delete[] data;
+	}
+
+	// XR-EXPORT S3 (EXPERIMENT): GL implementation - upload RGBA8 top-down
+	// bytes into the color texture (see the D3D11 implementation above).
+	void FrameBuffer::PasteColorData(uchar* src)
+	{
+		if (!size.width() || !size.height() || hdr)
+			return;
+
+		GFX->glBindTexture(GL_TEXTURE_2D, glColorTexId);
+		GFX->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.width(), size.height(),
+			GL_RGBA, GL_UNSIGNED_BYTE, src);
+		GL_CHECK_ERROR();
 	}
 
 	IntType FrameBuffer::GetPixelSize(BoolType color) const
