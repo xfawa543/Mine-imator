@@ -29,6 +29,11 @@ function lib_startup()
 	globalvar lib_movie_init, lib_movie_set, lib_movie_start, lib_movie_audio_file_decode, lib_movie_audio_file_add, lib_movie_audio_sound_add, lib_movie_frame, lib_movie_done;
 	globalvar lib_window_maximize, lib_window_set_focus;
 	globalvar lib_xr_vbuffer_save;
+	// XR-EXPORT S2-B (EXPERIMENT): in-process render bridge. C++ builds wire
+	// these by name to Library/XrBridgeLoader.cpp (no external DLL needed);
+	// GM builds never call them (is_cpp() gate), so no external_define here.
+	globalvar lib_xr_bridge_init, lib_xr_bridge_begin_frame, lib_xr_bridge_set_matrix;
+	globalvar lib_xr_bridge_set_shape_matrix, lib_xr_bridge_draw_vbuffer, lib_xr_bridge_end_frame;
 	
 	// Window library
 	log("External library", pathwindow)
@@ -55,6 +60,17 @@ function lib_startup()
 	// with a direct call into Library/XrExportLib.cpp; GM builds would need a
 	// matching DLL export (not shipped).
 	lib_xr_vbuffer_save = external_define(pathfile, "xr_vbuffer_save", dll_cdecl, ty_real, 3, ty_real, ty_string, ty_real)
+
+	// XR-EXPORT S2-B (EXPERIMENT): in-process render bridge. These defines
+	// exist for CppGen's external_call -> direct C++ call mapping (the
+	// functions live in Library/XrBridgeLoader.cpp); the DLL is loaded
+	// internally at runtime, so no GM-side library export is needed.
+	lib_xr_bridge_init = external_define(pathfile, "xr_bridge_init", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_string)
+	lib_xr_bridge_begin_frame = external_define(pathfile, "xr_bridge_begin_frame", dll_cdecl, ty_real, 10, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_set_matrix = external_define(pathfile, "xr_bridge_set_matrix", dll_cdecl, ty_real, 16, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_set_shape_matrix = external_define(pathfile, "xr_bridge_set_shape_matrix", dll_cdecl, ty_real, 16, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_draw_vbuffer = external_define(pathfile, "xr_bridge_draw_vbuffer", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_real)
+	lib_xr_bridge_end_frame = external_define(pathfile, "xr_bridge_end_frame", dll_cdecl, ty_real, 0)
 	
 	// Movie library
 	log("External library", pathmovie)

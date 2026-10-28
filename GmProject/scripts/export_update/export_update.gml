@@ -42,6 +42,9 @@ function export_update()
 			
 			// XR-EXPORT S2 (EXPERIMENT): env-gated one-time geometry dump.
 			xr_geo_dump()
+			// XR-EXPORT S2-B (EXPERIMENT): env-gated in-process xr render
+			// (writes BMPs via xr_bridge.dll when present; no-op otherwise).
+			xr_bridge_frame()
 		}
 	}
 	
