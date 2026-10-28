@@ -67,8 +67,8 @@ function lib_startup()
 	// internally at runtime, so no GM-side library export is needed.
 	lib_xr_bridge_init = external_define(pathfile, "xr_bridge_init", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_string)
 	lib_xr_bridge_begin_frame = external_define(pathfile, "xr_bridge_begin_frame", dll_cdecl, ty_real, 10, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
-	lib_xr_bridge_set_matrix = external_define(pathfile, "xr_bridge_set_matrix", dll_cdecl, ty_real, 16, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
-	lib_xr_bridge_set_shape_matrix = external_define(pathfile, "xr_bridge_set_shape_matrix", dll_cdecl, ty_real, 16, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_set_matrix = external_define(pathfile, "xr_bridge_set_matrix", dll_cdecl, ty_real, 16, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_set_shape_matrix = external_define(pathfile, "xr_bridge_set_shape_matrix", dll_cdecl, ty_real, 16, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
 	lib_xr_bridge_draw_vbuffer = external_define(pathfile, "xr_bridge_draw_vbuffer", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_real)
 	lib_xr_bridge_end_frame = external_define(pathfile, "xr_bridge_end_frame", dll_cdecl, ty_real, 0)
 	
