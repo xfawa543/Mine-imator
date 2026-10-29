@@ -11,6 +11,50 @@
 ///       Enabled ONLY when the environment variable XR_BRIDGE is set to an
 ///       output directory, and only in C++ builds.
 
+function xr_bridge_res_tex(obj)
+{
+	// S4: resolves a resource/texture-object reference to a GM texture id
+	// (0 = none). Tries the common texture accessors used by the render
+	// scripts (block_sheet_texture / item_sheet_texture / texture).
+	if (obj = null || is_undefined(obj))
+		return 0
+	var t = obj.block_sheet_texture
+	if (t != null && !is_undefined(t))
+		return t
+	t = obj.item_sheet_texture
+	if (t != null && !is_undefined(t))
+		return t
+	t = obj.texture
+	if (t != null && !is_undefined(t))
+		return t
+	return 0
+}
+
+function xr_bridge_shape_tex(tl, shapeId)
+{
+	// S4: per-shape diffuse texture of a BODYPART (model_part_shape_tex is
+	// maintained by render_update_tl_resource, which runs every animate
+	// step - fresh in takeover mode). Index parallels shape_list.
+	if (tl.model_part = null)
+		return 0
+	if (!ds_exists(tl.model_part.shape_list, ds_type_list))
+		return 0
+	for (var i = 0; i < ds_list_size(tl.model_part.shape_list); i++)
+	{
+		if (tl.model_part.shape_list[|i].id = shapeId)
+		{
+			var arr = tl.model_part_shape_tex
+			if (is_undefined(arr) || arr = null)
+				return 0
+			var t = arr[i]
+			if (t = null || is_undefined(t))
+				return 0
+			return t
+		}
+	}
+	return 0
+}
+
 globalvar xr_bridge_ready
 globalvar xr_bridge_did_render
 globalvar xr_bridge_takeover_active
@@ -85,6 +129,8 @@ function xr_bridge_frame()
 							external_call(lib_xr_bridge_set_shape_matrix,
 								sm[0], sm[1], sm[2], sm[3], sm[4], sm[5], sm[6], sm[7],
 								sm[8], sm[9], sm[10], sm[11], sm[12], sm[13], sm[14], sm[15])
+							// S4: per-shape diffuse texture
+							external_call(lib_xr_bridge_set_texture, xr_bridge_shape_tex(tl, string_get_real(key)))
 							external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 1)
 						}
 						key = ds_map_find_next(tl.model_shape_vbuffer_map, key)
@@ -104,6 +150,8 @@ function xr_bridge_frame()
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
+				// S4: the resource's block texture atlas
+				external_call(lib_xr_bridge_set_texture, xr_bridge_res_tex(res))
 				for (var d = 0; d < 3; d++)
 				{
 					for (var c = 0; c < 12; c++)
@@ -139,6 +187,8 @@ function xr_bridge_frame()
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
+				// S4: the resource's block texture atlas
+				external_call(lib_xr_bridge_set_texture, xr_bridge_res_tex(res))
 				for (var d = 0; d < 3; d++)
 				{
 					for (var c = 0; c < 12; c++)
@@ -170,6 +220,14 @@ function xr_bridge_frame()
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
+				// S4: TEXTURE_OBJ -> temp.model_tex fallback
+				var mtex = 0
+				var tobj = tl.value_inherit[e_value.TEXTURE_OBJ]
+				if (!is_undefined(tobj) && tobj != null)
+					mtex = xr_bridge_res_tex(tobj)
+				if (mtex = 0 && tl.temp.model_tex != null && !is_undefined(tl.temp.model_tex))
+					mtex = xr_bridge_res_tex(tl.temp.model_tex)
+				external_call(lib_xr_bridge_set_texture, mtex)
 				for (var d = 0; d < 3; d++)
 				{
 					for (var c = 0; c < 12; c++)
@@ -188,18 +246,23 @@ function xr_bridge_frame()
 			case e_tl_type.ITEM:
 			{
 				var vb = (tl.item_vbuffer != null ? tl.item_vbuffer : tl.temp.item_vbuffer)
+				var ires = is_undefined(tl.item_res) ? null : tl.item_res
+				external_call(lib_xr_bridge_set_texture, xr_bridge_res_tex(ires))
 				xr_bridge_draw_single(vb, m, -1)
 				break
 			}
 
 			case e_tl_type.TEXT:
 			{
+				var ttex = (tl.text_texture != null && !is_undefined(tl.text_texture)) ? tl.text_texture : 0
+				external_call(lib_xr_bridge_set_texture, ttex)
 				xr_bridge_draw_single(tl.text_vbuffer, m, -1)
 				break
 			}
 
 			case e_tl_type.PATH:
 			{
+				external_call(lib_xr_bridge_set_texture, 0)
 				xr_bridge_draw_single(tl.path_vbuffer, m, -1)
 				break
 			}
@@ -207,7 +270,15 @@ function xr_bridge_frame()
 			default:
 			{
 				if (tl.temp != null && !is_undefined(tl.temp.shape_vbuffer))
+				{
+					// S4: TEXTURE_OBJ chain (same source as render_world_shape)
+					var stex = 0
+					var sobj = tl.value_inherit[e_value.TEXTURE_OBJ]
+					if (!is_undefined(sobj) && sobj != null)
+						stex = xr_bridge_res_tex(sobj)
+					external_call(lib_xr_bridge_set_texture, stex)
 					xr_bridge_draw_single(tl.temp.shape_vbuffer, m, -1)
+				}
 				break
 			}
 		}

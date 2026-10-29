@@ -34,6 +34,7 @@ function lib_startup()
 	// GM builds never call them (is_cpp() gate), so no external_define here.
 	globalvar lib_xr_bridge_init, lib_xr_bridge_begin_frame, lib_xr_bridge_set_matrix;
 	globalvar lib_xr_bridge_set_shape_matrix, lib_xr_bridge_draw_vbuffer, lib_xr_bridge_end_frame;
+	globalvar lib_xr_bridge_set_texture;
 	
 	// Window library
 	log("External library", pathwindow)
@@ -71,6 +72,7 @@ function lib_startup()
 	lib_xr_bridge_set_shape_matrix = external_define(pathfile, "xr_bridge_set_shape_matrix", dll_cdecl, ty_real, 16, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
 	lib_xr_bridge_draw_vbuffer = external_define(pathfile, "xr_bridge_draw_vbuffer", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_real)
 	lib_xr_bridge_end_frame = external_define(pathfile, "xr_bridge_end_frame", dll_cdecl, ty_real, 0)
+	lib_xr_bridge_set_texture = external_define(pathfile, "xr_bridge_set_texture", dll_cdecl, ty_real, 1, ty_real)
 	
 	// Movie library
 	log("External library", pathmovie)

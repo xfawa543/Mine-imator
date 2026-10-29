@@ -25,12 +25,15 @@
 #include "Asset/VertexBuffer.hpp"
 #include "Render/Mesh.hpp"
 #include "Render/Vertex.hpp"
+#include "Render/Texture.hpp"
+#include "Render/GraphicsApiHandler.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 
 #include <vector>
+#include <QHash>
 
 namespace CppProject
 {
@@ -41,6 +44,8 @@ namespace CppProject
 	typedef void (*XrDrawMeshFn)(const void*, int, int, const void*, int, int);
 	typedef int  (*XrEndFrameFn)(int);
 	typedef int  (*XrReadFrameFn)(uint8_t*, int, int);
+	typedef int  (*XrTexFn)(uint64_t, int, int, const uint8_t*);
+	typedef void (*XrSetTexFn)(uint64_t);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -50,6 +55,8 @@ namespace CppProject
 	static XrDrawMeshFn s_draw = nullptr;
 	static XrEndFrameFn s_end = nullptr;
 	static XrReadFrameFn s_read = nullptr;
+	static XrTexFn s_texUp = nullptr;
+	static XrSetTexFn s_setTex = nullptr;
 	static bool s_tried = false;
 	static int s_frameIndex = 0;
 
@@ -76,7 +83,9 @@ namespace CppProject
 		s_draw = (XrDrawMeshFn)GetProcAddress(s_bridge, "xr_bridge_draw_mesh");
 		s_end = (XrEndFrameFn)GetProcAddress(s_bridge, "xr_bridge_end_frame");
 		s_read = (XrReadFrameFn)GetProcAddress(s_bridge, "xr_bridge_read_frame");
-		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read)
+		s_texUp = (XrTexFn)GetProcAddress(s_bridge, "xr_bridge_tex");
+		s_setTex = (XrSetTexFn)GetProcAddress(s_bridge, "xr_bridge_set_texture");
+		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex)
 		{
 			s_bridge = nullptr;
 			return false;
@@ -214,5 +223,97 @@ namespace CppProject
 			return 0;
 		const int ms = s_end(s_frameIndex++);
 		return (RealType)ms;
+	}
+
+	// ==== S4: texture bridge ====
+	// Pixel cache per GM texture id: read back once through a D3D staging
+	// copy, then hand the RGBA bytes to the DLL (which keeps a GL texture).
+	static QHash<IntType, QByteArray> s_texPixels;
+	static QHash<IntType, int> s_texW, s_texH;
+
+	RealType lib_xr_bridge_set_texture(RealType texId)
+	{
+		if (!s_setTex)
+			return 0;
+		const IntType id = (IntType)texId;
+		if (id <= 0 || !s_texUp)
+		{
+			s_setTex(0);
+			return 0;
+		}
+		if (!s_texPixels.contains(id))
+		{
+			// Resolve the GM texture id to its D3D texture.
+			ID3D11ShaderResourceView* srv = Texture::d3dIdSRVMap.value(id, nullptr);
+			if (!srv)
+			{
+				s_setTex(0);
+				return 0;
+			}
+			ID3D11Resource* res = nullptr;
+			srv->GetResource(&res);
+			ID3D11Texture2D* tex = res ? (ID3D11Texture2D*)res : nullptr;
+			if (!tex)
+			{
+				if (res) res->Release();
+				s_setTex(0);
+				return 0;
+			}
+			D3D11_TEXTURE2D_DESC desc;
+			tex->GetDesc(&desc);
+			// Staging copy for CPU readback.
+			D3D11_TEXTURE2D_DESC sd = desc;
+			sd.Usage = D3D11_USAGE_STAGING;
+			sd.BindFlags = 0;
+			sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+			sd.MiscFlags = 0;
+			ID3D11Texture2D* staging = nullptr;
+			if (FAILED(D3DDevice->CreateTexture2D(&sd, nullptr, &staging)))
+			{
+				res->Release();
+				s_setTex(0);
+				return 0;
+			}
+			D3DContext->CopyResource(staging, tex);
+			D3D11_MAPPED_SUBRESOURCE mapped = {};
+			if (FAILED(D3DContext->Map(staging, 0, D3D11_MAP_READ, 0, &mapped)))
+			{
+				staging->Release();
+				res->Release();
+				s_setTex(0);
+				return 0;
+			}
+			const int w = (int)desc.Width, h = (int)desc.Height;
+			QByteArray rgba((int)w * h * 4, 0);
+			const bool bgra = (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM ||
+				desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS);
+			const IntType rowBytes = w * 4;
+			for (int y = 0; y < h; y++)
+			{
+				const uchar* src = (const uchar*)mapped.pData + (qint64)y * mapped.RowPitch;
+				uchar* dst = (uchar*)rgba.data() + (qint64)y * rowBytes;
+				if (bgra)
+				{
+					for (int x = 0; x < w; x++)
+					{
+						dst[x * 4 + 0] = src[x * 4 + 2];
+						dst[x * 4 + 1] = src[x * 4 + 1];
+						dst[x * 4 + 2] = src[x * 4 + 0];
+						dst[x * 4 + 3] = src[x * 4 + 3];
+					}
+				}
+				else
+					memcpy(dst, src, rowBytes);
+			}
+			D3DContext->Unmap(staging, 0);
+			staging->Release();
+			res->Release();
+			s_texPixels[id] = rgba;
+			s_texW[id] = w;
+			s_texH[id] = h;
+			s_texUp((uint64_t)id, w, h, (const uint8_t*)s_texPixels[id].constData());
+		}
+		s_setTex((uint64_t)id);
+		return 1;
 	}
 }
