@@ -2,13 +2,9 @@
 
 function trial_startup()
 {
+	// XR build: the trial/activation system is removed entirely.
+	// Full version from the first launch — no keys, no upgrade popups,
+	// no trial watermark defaults.
 	globalvar trial_version;
-	trial_version = (dev_mode_full ? false : true)
-	
-	if (file_exists_lib(key_file))
-	{
-		log("Found key_file", key_file)
-		if (key_valid(file_text_contents(key_file)))
-			trial_version = false
-	}
+	trial_version = false
 }

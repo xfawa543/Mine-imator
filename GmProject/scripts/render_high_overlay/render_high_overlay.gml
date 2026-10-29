@@ -20,9 +20,8 @@ function render_high_overlay(prevsurf)
 		}
 		else
 			draw_surface_exists(prevsurf, 0, 0)
-		
-		if (render_watermark)
-			render_watermark_image()
+
+		// XR build: watermark rendering removed entirely.
 	}
 	surface_reset_target()
 	
