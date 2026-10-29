@@ -14,6 +14,7 @@
 globalvar xr_bridge_ready
 globalvar xr_bridge_did_render
 globalvar xr_bridge_takeover_active
+globalvar xr_bridge_tex_map
 
 function xr_bridge_frame()
 {
@@ -47,7 +48,6 @@ function xr_bridge_frame()
 		// debug sampling); per-frame loops returned 0 under CppGen, so the
 		// tex ids are collected ONCE here into a global ds_map (tl.id -> tex)
 		// and looked up per frame. Texture assignment is static during export.
-		globalvar xr_bridge_tex_map
 		xr_bridge_tex_map = ds_map_create()
 		for (var i = 0; i < ds_list_size(render_list); i++)
 		{
