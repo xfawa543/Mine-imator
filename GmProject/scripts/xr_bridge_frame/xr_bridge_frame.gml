@@ -76,6 +76,27 @@ function xr_bridge_frame()
 	// One-time init at export start (project video resolution).
 	if (xr_bridge_ready != 1)
 	{
+		// S4 debug: sample the texture sources of the first frame's items.
+		var dbgTex = ""
+		for (var i = 0; i < ds_list_size(render_list); i++)
+		{
+			var tl = render_list[|i]
+			if (i >= 8) break
+			var tv = 0
+			if (tl.type = e_tl_type.BODYPART)
+				tv = (tl.model_part_shape_tex != null ? tl.model_part_shape_tex[0] : -9)
+			else if (tl.type = e_tl_type.BLOCK || tl.type = e_tl_type.SCENERY)
+				tv = (tl.render_res_diffuse != null ? tl.render_res_diffuse.block_sheet_texture : -8)
+			else if (tl.type = e_tl_type.ITEM)
+				tv = (tl.item_res != null ? tl.item_res.item_sheet_texture : -7)
+			else
+				tv = (tl.value_inherit[e_value.TEXTURE_OBJ] != null ? tl.value_inherit[e_value.TEXTURE_OBJ].texture : -6)
+			dbgTex += "#" + string(tl.type) + "=" + string(tv) + " "
+		}
+		log("XR bridge tex sample:", dbgTex)
+	}
+	if (xr_bridge_ready != 1)
+	{
 		var r = external_call(lib_xr_bridge_init, project_video_width, project_video_height, prefix)
 		if (r <= 0)
 		{
