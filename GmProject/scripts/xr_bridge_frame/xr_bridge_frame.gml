@@ -42,6 +42,76 @@ function xr_bridge_frame()
 		}
 		xr_bridge_ready = 1
 		log("XR bridge init ok", string(project_video_width) + "x" + string(project_video_height))
+		// ==== S4: one-time texture map collection ====
+		// The init-time chained reads resolve correctly (verified via the
+		// debug sampling); per-frame loops returned 0 under CppGen, so the
+		// tex ids are collected ONCE here into a global ds_map (tl.id -> tex)
+		// and looked up per frame. Texture assignment is static during export.
+		globalvar xr_bridge_tex_map
+		xr_bridge_tex_map = ds_map_create()
+		for (var i = 0; i < ds_list_size(render_list); i++)
+		{
+			var tl = render_list[|i]
+			var tex = 0
+			if (tl.type = e_tl_type.BODYPART)
+			{
+				if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
+				{
+					var arr2 = tl.model_part_shape_tex
+					if (!is_undefined(arr2) && arr2 != null)
+					{
+						var tv2 = arr2[0]
+						if (tv2 != null && !is_undefined(tv2))
+							tex = tv2
+					}
+				}
+			}
+			else if (tl.type = e_tl_type.BLOCK || tl.type = e_tl_type.SCENERY)
+			{
+				var res = is_undefined(tl.render_res_diffuse) ? null : tl.render_res_diffuse
+				if (res != null)
+				{
+					var bt = res.block_sheet_texture
+					if (bt != null && !is_undefined(bt))
+						tex = bt
+				}
+			}
+			else if (tl.type = e_tl_type.ITEM)
+			{
+				var ires = is_undefined(tl.item_res) ? null : tl.item_res
+				if (ires != null)
+				{
+					var it = ires.item_sheet_texture
+					if (it != null && !is_undefined(it))
+						tex = it
+				}
+			}
+			else if (tl.type = e_tl_type.TEXT)
+			{
+				if (tl.text_texture != null && !is_undefined(tl.text_texture))
+					tex = tl.text_texture
+			}
+			else
+			{
+				var sobj = tl.value_inherit[e_value.TEXTURE_OBJ]
+				if (!is_undefined(sobj) && sobj != null)
+				{
+					var sv = sobj.texture
+					if (sv != null && !is_undefined(sv))
+						tex = sv
+				}
+			}
+			ds_map_add(xr_bridge_tex_map, tl.id, tex)
+		}
+		var texCount = 0
+		var texScan = ds_map_find_first(xr_bridge_tex_map)
+		while (!is_undefined(texScan))
+		{
+			if (xr_bridge_tex_map[?texScan] != 0)
+				texCount++
+			texScan = ds_map_find_next(xr_bridge_tex_map, texScan)
+		}
+		log("XR bridge tex map:", string(texCount) + " textured items")
 	}
 
 	// Camera: same convention as xr_anim_dump (from = world_pos,
@@ -63,6 +133,10 @@ function xr_bridge_frame()
 			continue
 		var t = tl.type
 		var m = tl.matrix_render
+		// S4: per-item texture from the one-time collected map.
+		var itemTex = 0
+		if (ds_map_exists(xr_bridge_tex_map, tl.id))
+			itemTex = xr_bridge_tex_map[?tl.id]
 
 		switch (t)
 		{
@@ -85,28 +159,8 @@ function xr_bridge_frame()
 							external_call(lib_xr_bridge_set_shape_matrix,
 								sm[0], sm[1], sm[2], sm[3], sm[4], sm[5], sm[6], sm[7],
 								sm[8], sm[9], sm[10], sm[11], sm[12], sm[13], sm[14], sm[15])
-							// S4: per-shape diffuse texture. model_part_shape_tex
-							// parallels model_part.shape_list (maintained by
-							// render_update_tl_resource - fresh every frame).
-							var stex2 = 0
-							if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
-							{
-								for (var si = 0; si < ds_list_size(tl.model_part.shape_list); si++)
-								{
-									if (tl.model_part.shape_list[|si].id = string_get_real(key))
-									{
-										var arr2 = tl.model_part_shape_tex
-										if (!is_undefined(arr2) && arr2 != null)
-										{
-											var tv2 = arr2[si]
-											if (tv2 != null && !is_undefined(tv2))
-												stex2 = tv2
-										}
-										break
-									}
-								}
-							}
-							external_call(lib_xr_bridge_set_texture, stex2)
+							// S4: per-item texture from the collected map
+							external_call(lib_xr_bridge_set_texture, itemTex)
 							external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 1)
 						}
 						key = ds_map_find_next(tl.model_shape_vbuffer_map, key)
@@ -126,15 +180,7 @@ function xr_bridge_frame()
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
-				// S4: the resource's block texture atlas (inline read).
-				var btex = 0
-				if (res != null)
-				{
-					var bt = res.block_sheet_texture
-					if (bt != null && !is_undefined(bt))
-						btex = bt
-				}
-				external_call(lib_xr_bridge_set_texture, btex)
+				external_call(lib_xr_bridge_set_texture, itemTex)
 				for (var d = 0; d < 3; d++)
 				{
 					for (var c = 0; c < 12; c++)
@@ -170,14 +216,7 @@ function xr_bridge_frame()
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
-				var btex = 0
-				if (res != null)
-				{
-					var bt = res.block_sheet_texture
-					if (bt != null && !is_undefined(bt))
-						btex = bt
-				}
-				external_call(lib_xr_bridge_set_texture, btex)
+				external_call(lib_xr_bridge_set_texture, itemTex)
 				for (var d = 0; d < 3; d++)
 				{
 					for (var c = 0; c < 12; c++)
@@ -209,28 +248,7 @@ function xr_bridge_frame()
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
-				// S4: TEXTURE_OBJ -> temp.model_tex fallback (inline reads).
-				var mtex = 0
-				var tobj = tl.value_inherit[e_value.TEXTURE_OBJ]
-				if (!is_undefined(tobj) && tobj != null)
-				{
-					var t1 = tobj.texture
-					if (t1 != null && !is_undefined(t1))
-						mtex = t1
-					else
-					{
-						var t2 = tobj.block_sheet_texture
-						if (t2 != null && !is_undefined(t2))
-							mtex = t2
-					}
-				}
-				if (mtex = 0 && tl.temp.model_tex != null && !is_undefined(tl.temp.model_tex))
-				{
-					var t3 = tl.temp.model_tex.block_sheet_texture
-					if (t3 != null && !is_undefined(t3))
-						mtex = t3
-				}
-				external_call(lib_xr_bridge_set_texture, mtex)
+				external_call(lib_xr_bridge_set_texture, itemTex)
 				for (var d = 0; d < 3; d++)
 				{
 					for (var c = 0; c < 12; c++)
@@ -249,25 +267,14 @@ function xr_bridge_frame()
 			case e_tl_type.ITEM:
 			{
 				var vb = (tl.item_vbuffer != null ? tl.item_vbuffer : tl.temp.item_vbuffer)
-				var itex = 0
-				var ires = is_undefined(tl.item_res) ? null : tl.item_res
-				if (ires != null)
-				{
-					var it = ires.item_sheet_texture
-					if (it != null && !is_undefined(it))
-						itex = it
-				}
-				external_call(lib_xr_bridge_set_texture, itex)
+				external_call(lib_xr_bridge_set_texture, itemTex)
 				xr_bridge_draw_single(vb, m, -1)
 				break
 			}
 
 			case e_tl_type.TEXT:
 			{
-				var ttex = 0
-				if (tl.text_texture != null && !is_undefined(tl.text_texture))
-					ttex = tl.text_texture
-				external_call(lib_xr_bridge_set_texture, ttex)
+				external_call(lib_xr_bridge_set_texture, itemTex)
 				xr_bridge_draw_single(tl.text_vbuffer, m, -1)
 				break
 			}
@@ -283,17 +290,7 @@ function xr_bridge_frame()
 			{
 				if (tl.temp != null && !is_undefined(tl.temp.shape_vbuffer))
 				{
-					// S4: TEXTURE_OBJ -> .texture (inline, same read the
-					// render script's temp_get_shape_tex chain ends with).
-					var stex = 0
-					var sobj = tl.value_inherit[e_value.TEXTURE_OBJ]
-					if (!is_undefined(sobj) && sobj != null)
-					{
-						var sv = sobj.texture
-						if (sv != null && !is_undefined(sv))
-							stex = sv
-					}
-					external_call(lib_xr_bridge_set_texture, stex)
+					external_call(lib_xr_bridge_set_texture, itemTex)
 					xr_bridge_draw_single(tl.temp.shape_vbuffer, m, -1)
 				}
 				break
