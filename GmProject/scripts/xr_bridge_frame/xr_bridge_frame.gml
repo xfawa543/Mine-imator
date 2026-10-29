@@ -136,7 +136,7 @@ function xr_bridge_frame()
 		// S4: per-item texture from the one-time collected map.
 		var itemTex = 0
 		if (ds_map_exists(xr_bridge_tex_map, tl.id))
-			itemTex = xr_bridge_tex_map[?tl.id]
+			itemTex = ds_map_find_value(xr_bridge_tex_map, tl.id)
 
 		switch (t)
 		{
