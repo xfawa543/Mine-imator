@@ -108,6 +108,11 @@ function xr_bridge_frame()
 			if (stexP != 0)
 				itemTex = stexP
 		}
+		// S4: itemTex is a SPRITE id (block_sheet_texture/texture store
+		// sprites, see render_set_texture) - convert to the texture-page
+		// location id the runtime's texture registry actually keys on.
+		if (itemTex > 0 && sprite_exists(itemTex))
+			itemTex = sprite_get_texture(itemTex, 0)
 		// S4 debug: per-frame first 4 items, all values.
 		if (exportmovie_frame < 2 && i < 4)
 		{
