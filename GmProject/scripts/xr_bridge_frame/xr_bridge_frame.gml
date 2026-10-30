@@ -46,7 +46,7 @@ function xr_bridge_frame()
 		// ==== S4: one-time texture map collection (separate function: the
 		// assignment must happen at a function-body scope that CppGen
 		// resolves to the global, like the working did_render pattern).
-		xr_bridge_tex_collect()
+
 	}
 
 	// Camera: same convention as xr_anim_dump (from = world_pos,
@@ -68,10 +68,58 @@ function xr_bridge_frame()
 			continue
 		var t = tl.type
 		var m = tl.matrix_render
-		// S4: per-item texture from the one-time collected map.
+		// S4: per-item texture resolved INLINE at loop top (if/else chain,
+		// same shape as the verified init sampling - switch case blocks and
+		// cross-function data both failed under CppGen).
 		var itemTex = 0
-		if (ds_map_exists(xr_bridge_tex_map, tl.id))
-			itemTex = ds_map_find_value(xr_bridge_tex_map, tl.id)
+		if (t = e_tl_type.BODYPART)
+		{
+			if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
+			{
+				var arrT = tl.model_part_shape_tex
+				if (!is_undefined(arrT) && arrT != null)
+				{
+					var tvT = arrT[0]
+					if (tvT != null && !is_undefined(tvT))
+						itemTex = tvT
+				}
+			}
+		}
+		else if (t = e_tl_type.BLOCK || t = e_tl_type.SCENERY)
+		{
+			var resT = is_undefined(tl.render_res_diffuse) ? null : tl.render_res_diffuse
+			if (resT != null)
+			{
+				var btT = resT.block_sheet_texture
+				if (btT != null && !is_undefined(btT))
+					itemTex = btT
+			}
+		}
+		else if (t = e_tl_type.ITEM)
+		{
+			var irT = is_undefined(tl.item_res) ? null : tl.item_res
+			if (irT != null)
+			{
+				var itT = irT.item_sheet_texture
+				if (itT != null && !is_undefined(itT))
+					itemTex = itT
+			}
+		}
+		else if (t = e_tl_type.TEXT)
+		{
+			if (tl.text_texture != null && !is_undefined(tl.text_texture))
+				itemTex = tl.text_texture
+		}
+		else
+		{
+			var soT = tl.value_inherit[e_value.TEXTURE_OBJ]
+			if (!is_undefined(soT) && soT != null)
+			{
+				var svT = soT.texture
+				if (svT != null && !is_undefined(svT))
+					itemTex = svT
+			}
+		}
 
 		switch (t)
 		{
@@ -94,7 +142,6 @@ function xr_bridge_frame()
 							external_call(lib_xr_bridge_set_shape_matrix,
 								sm[0], sm[1], sm[2], sm[3], sm[4], sm[5], sm[6], sm[7],
 								sm[8], sm[9], sm[10], sm[11], sm[12], sm[13], sm[14], sm[15])
-							// S4: per-item texture from the collected map
 							external_call(lib_xr_bridge_set_texture, itemTex)
 							external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 1)
 						}
@@ -216,7 +263,7 @@ function xr_bridge_frame()
 
 			case e_tl_type.PATH:
 			{
-				external_call(lib_xr_bridge_set_texture, 0)
+				external_call(lib_xr_bridge_set_texture, itemTex)
 				xr_bridge_draw_single(tl.path_vbuffer, m, -1)
 				break
 			}
@@ -241,7 +288,7 @@ function xr_bridge_frame()
 	return xr_bridge_did_render
 }
 
-function xr_bridge_tex_collect()
+// (removed: tex collection superseded by inline loop-top reads)`r`nfunction xr_bridge_tex_collect()
 {
 	// ==== S4: one-time texture map collection (tl.id -> texture id) ====
 	globalvar xr_bridge_tex_map
