@@ -113,19 +113,6 @@ function xr_bridge_frame()
 		// location id the runtime's texture registry actually keys on.
 		if (itemTex > 0 && sprite_exists(itemTex))
 			itemTex = sprite_get_texture(itemTex, 0)
-		// S4 debug: per-frame first 4 items, all values.
-		if (exportmovie_frame < 2 && i < 4)
-		{
-			log("XRt:", "f" + string(exportmovie_frame) + " i" + string(i) + " t" + string(t) +
-				" tobj=" + string(tobjT) + " itemTex=" + string(itemTex) +
-				" mc=" + string(mc_res.block_sheet_texture))
-		}
-		// S4 debug: first 3 items ever, runtime values into MI's log.
-		if (xr_bridge_dbg_n < 3)
-		{
-			xr_bridge_dbg_n++
-			log("XR tex item:", string(t) + " tobj=" + string(tobjT) + " tex=" + string(itemTex))
-		}
 
 		switch (t)
 		{
