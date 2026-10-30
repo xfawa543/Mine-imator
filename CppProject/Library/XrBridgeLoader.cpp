@@ -25,7 +25,8 @@
 #include "Asset/VertexBuffer.hpp"
 #include "Render/Mesh.hpp"
 #include "Render/Vertex.hpp"
-#include "Render/Texture.hpp"`r`n#include "Render/TexturePage.hpp"
+#include "Render/Texture.hpp"
+#include "Render/TexturePage.hpp"
 #include "Render/GraphicsApiHandler.hpp"
 
 #define WIN32_LEAN_AND_MEAN
