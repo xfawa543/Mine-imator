@@ -15,6 +15,7 @@ globalvar xr_bridge_ready
 globalvar xr_bridge_did_render
 globalvar xr_bridge_takeover_active
 globalvar xr_bridge_tex_map
+globalvar xr_bridge_dbg_n
 
 function xr_bridge_frame()
 {
@@ -70,10 +71,7 @@ function xr_bridge_frame()
 		var m = tl.matrix_render
 		// S4: per-item texture resolved INLINE at loop top. PRIMARY SOURCE =
 		// tl.value_inherit[TEXTURE_OBJ] (the user's resource reference, NOT
-		// gated by res_is_ready - render_res_diffuse stays null in takeover
-		// mode because the native render path never runs to ready the
-		// resources). BODYPART: model_part_shape_tex first (per-shape skin),
-		// TEXTURE_OBJ fallback.
+		// gated by res_is_ready). BODYPART: model_part_shape_tex first.
 		var itemTex = 0
 		var tobjT = tl.value_inherit[e_value.TEXTURE_OBJ]
 		if (tobjT != null)
@@ -103,6 +101,12 @@ function xr_bridge_frame()
 			}
 			if (stexP != 0)
 				itemTex = stexP
+		}
+		// S4 debug: first 3 items ever, runtime values into MI's log.
+		if (xr_bridge_dbg_n < 3)
+		{
+			xr_bridge_dbg_n++
+			log("XR tex item:", string(t) + " tobj=" + string(tobjT) + " tex=" + string(itemTex))
 		}
 
 		switch (t)
@@ -276,6 +280,7 @@ function xr_bridge_frame()
 {
 	// ==== S4: one-time texture map collection (tl.id -> texture id) ====
 	globalvar xr_bridge_tex_map
+globalvar xr_bridge_dbg_n
 	xr_bridge_tex_map = ds_map_create()
 	for (var i = 0; i < ds_list_size(render_list); i++)
 	{
