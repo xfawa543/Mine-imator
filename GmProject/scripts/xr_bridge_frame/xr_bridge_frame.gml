@@ -87,7 +87,11 @@ function xr_bridge_frame()
 			}
 		}
 		if (itemTex = 0)
-			itemTex = mc_res.block_sheet_texture
+		{
+			var mcv = mc_res.block_sheet_texture
+			if (mcv != null && !is_undefined(mcv))
+				itemTex = mcv
+		}
 		if (t = e_tl_type.BODYPART)
 		{
 			var stexP = 0
@@ -103,6 +107,13 @@ function xr_bridge_frame()
 			}
 			if (stexP != 0)
 				itemTex = stexP
+		}
+		// S4 debug: per-frame first 4 items, all values.
+		if (exportmovie_frame < 2 && i < 4)
+		{
+			log("XRt:", "f" + string(exportmovie_frame) + " i" + string(i) + " t" + string(t) +
+				" tobj=" + string(tobjT) + " itemTex=" + string(itemTex) +
+				" mc=" + string(mc_res.block_sheet_texture))
 		}
 		// S4 debug: first 3 items ever, runtime values into MI's log.
 		if (xr_bridge_dbg_n < 3)
