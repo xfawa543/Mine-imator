@@ -25,7 +25,7 @@
 #include "Asset/VertexBuffer.hpp"
 #include "Render/Mesh.hpp"
 #include "Render/Vertex.hpp"
-#include "Render/Texture.hpp"
+#include "Render/Texture.hpp"`r`n#include "Render/TexturePage.hpp"
 #include "Render/GraphicsApiHandler.hpp"
 
 #define WIN32_LEAN_AND_MEAN
@@ -226,8 +226,9 @@ namespace CppProject
 	}
 
 	// ==== S4: texture bridge ====
-	// Pixel cache per GM texture id: read back once through a D3D staging
-	// copy, then hand the RGBA bytes to the DLL (which keeps a GL texture).
+	// MI texture ids are TexturePageLocation ids (texture-page atlas
+	// sub-rects). The vertices' UVs are page coordinates, so the WHOLE page
+	// is uploaded once (cached by the page texture's id) and shared.
 	static QHash<IntType, QByteArray> s_texPixels;
 	static QHash<IntType, int> s_texW, s_texH;
 
@@ -241,27 +242,28 @@ namespace CppProject
 			s_setTex(0);
 			return 0;
 		}
-		if (!s_texPixels.contains(id))
+		// Resolve the texture-page location for this id.
+		TexturePageLocation* loc = TexturePageLocation::Find(id);
+		if (!loc || !loc->page || !loc->page->texture)
 		{
-			// Resolve the GM texture id to its D3D texture.
-			ID3D11ShaderResourceView* srv = Texture::d3dIdSRVMap.value(id, nullptr);
-			if (!srv)
-			{
-				s_setTex(0);
-				return 0;
-			}
+			s_setTex(0);
+			return 0;
+		}
+		Texture* pageTex = loc->page->texture;
+		const IntType pageKey = pageTex->GetId();
+		if (!s_texPixels.contains(pageKey))
+		{
+			// Read back the whole page through a D3D staging copy.
 			ID3D11Resource* res = nullptr;
-			srv->GetResource(&res);
-			ID3D11Texture2D* tex = res ? (ID3D11Texture2D*)res : nullptr;
-			if (!tex)
+			pageTex->d3dTex->QueryInterface(__uuidof(ID3D11Resource), (void**)&res);
+			if (!res)
 			{
-				if (res) res->Release();
 				s_setTex(0);
 				return 0;
 			}
+			ID3D11Texture2D* tex = (ID3D11Texture2D*)res;
 			D3D11_TEXTURE2D_DESC desc;
 			tex->GetDesc(&desc);
-			// Staging copy for CPU readback.
 			D3D11_TEXTURE2D_DESC sd = desc;
 			sd.Usage = D3D11_USAGE_STAGING;
 			sd.BindFlags = 0;
@@ -308,12 +310,12 @@ namespace CppProject
 			D3DContext->Unmap(staging, 0);
 			staging->Release();
 			res->Release();
-			s_texPixels[id] = rgba;
-			s_texW[id] = w;
-			s_texH[id] = h;
-			s_texUp((uint64_t)id, w, h, (const uint8_t*)s_texPixels[id].constData());
+			s_texPixels[pageKey] = rgba;
+			s_texW[pageKey] = w;
+			s_texH[pageKey] = h;
+			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
 		}
-		s_setTex((uint64_t)id);
+		s_setTex((uint64_t)pageKey);
 		return 1;
 	}
 }
