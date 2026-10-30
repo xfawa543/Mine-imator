@@ -68,57 +68,41 @@ function xr_bridge_frame()
 			continue
 		var t = tl.type
 		var m = tl.matrix_render
-		// S4: per-item texture resolved INLINE at loop top (if/else chain,
-		// same shape as the verified init sampling - switch case blocks and
-		// cross-function data both failed under CppGen).
+		// S4: per-item texture resolved INLINE at loop top. PRIMARY SOURCE =
+		// tl.value_inherit[TEXTURE_OBJ] (the user's resource reference, NOT
+		// gated by res_is_ready - render_res_diffuse stays null in takeover
+		// mode because the native render path never runs to ready the
+		// resources). BODYPART: model_part_shape_tex first (per-shape skin),
+		// TEXTURE_OBJ fallback.
 		var itemTex = 0
-		if (t = e_tl_type.BODYPART)
+		var tobjT = tl.value_inherit[e_value.TEXTURE_OBJ]
+		if (tobjT != null)
 		{
-			if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
+			var btT = tobjT.block_sheet_texture
+			if (btT != null && !is_undefined(btT))
+				itemTex = btT
+			else
 			{
-				var arrT = tl.model_part_shape_tex
-				if (!is_undefined(arrT) && arrT != null)
-				{
-					var tvT = arrT[0]
-					if (tvT != null && !is_undefined(tvT))
-						itemTex = tvT
-				}
-			}
-		}
-		else if (t = e_tl_type.BLOCK || t = e_tl_type.SCENERY)
-		{
-			var resT = tl.render_res_diffuse
-			if (resT != null)
-			{
-				var btT = resT.block_sheet_texture
-				if (btT != null && !is_undefined(btT))
-					itemTex = btT
-			}
-		}
-		else if (t = e_tl_type.ITEM)
-		{
-			var irT = tl.item_res
-			if (irT != null)
-			{
-				var itT = irT.item_sheet_texture
-				if (itT != null && !is_undefined(itT))
-					itemTex = itT
-			}
-		}
-		else if (t = e_tl_type.TEXT)
-		{
-			if (tl.text_texture != null && !is_undefined(tl.text_texture))
-				itemTex = tl.text_texture
-		}
-		else
-		{
-			var soT = tl.value_inherit[e_value.TEXTURE_OBJ]
-			if (soT != null)
-			{
-				var svT = soT.texture
+				var svT = tobjT.texture
 				if (svT != null && !is_undefined(svT))
 					itemTex = svT
 			}
+		}
+		if (t = e_tl_type.BODYPART)
+		{
+			var stexP = 0
+			if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
+			{
+				var arrT = tl.model_part_shape_tex
+				if (arrT != null && !is_undefined(arrT))
+				{
+					var tvT = arrT[0]
+					if (tvT != null && !is_undefined(tvT))
+						stexP = tvT
+				}
+			}
+			if (stexP != 0)
+				itemTex = stexP
 		}
 
 		switch (t)
