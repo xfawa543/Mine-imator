@@ -50,8 +50,12 @@ function export_update()
 			// When the bridge rendered this frame, its pixels go to the
 			// encoder (MovieLib pixel source swap) and the native D3D11
 			// render below is skipped entirely (takeover mode).
+			// S4: frame 0 stays NATIVE - the native render pass triggers
+			// MI's resource-ready/vbuffer-rebuild logic (static vbuffers are
+			// built with UV=0 placeholders until the render path rebuilds
+			// them), so one warm-up frame gives the xr path textured buffers.
 			xr_bridge_frame()
-			xr_bridge_takeover = (xr_bridge_did_render && exportmovie_format != "png")
+			xr_bridge_takeover = (xr_bridge_did_render && exportmovie_format != "png" && exportmovie_frame > 0)
 			xr_bridge_takeover_active = xr_bridge_takeover
 		}
 	}
