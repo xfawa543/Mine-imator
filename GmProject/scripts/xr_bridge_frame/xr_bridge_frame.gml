@@ -69,12 +69,12 @@ function xr_bridge_frame()
 			continue
 		var t = tl.type
 		var m = tl.matrix_render
-		// S4: per-item texture resolved INLINE at loop top. PRIMARY SOURCE =
-		// tl.value_inherit[TEXTURE_OBJ] (the user's resource reference, NOT
-		// gated by res_is_ready). BODYPART: model_part_shape_tex first.
+		// S4: per-item texture. TEXTURE_OBJ chain first; fallback = mc_res
+		// (the block atlas, exactly like render_world_block's
+		// "if (res = null) res = mc_res" - plain cubes have no TEXTURE_OBJ).
 		var itemTex = 0
 		var tobjT = tl.value_inherit[e_value.TEXTURE_OBJ]
-		if (tobjT != null)
+		if (tobjT != null && !is_undefined(tobjT))
 		{
 			var btT = tobjT.block_sheet_texture
 			if (btT != null && !is_undefined(btT))
@@ -86,6 +86,8 @@ function xr_bridge_frame()
 					itemTex = svT
 			}
 		}
+		if (itemTex = 0)
+			itemTex = mc_res.block_sheet_texture
 		if (t = e_tl_type.BODYPART)
 		{
 			var stexP = 0
