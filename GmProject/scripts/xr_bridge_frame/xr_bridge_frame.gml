@@ -87,7 +87,7 @@ function xr_bridge_frame()
 		}
 		else if (t = e_tl_type.BLOCK || t = e_tl_type.SCENERY)
 		{
-			var resT = is_undefined(tl.render_res_diffuse) ? null : tl.render_res_diffuse
+			var resT = tl.render_res_diffuse
 			if (resT != null)
 			{
 				var btT = resT.block_sheet_texture
@@ -97,7 +97,7 @@ function xr_bridge_frame()
 		}
 		else if (t = e_tl_type.ITEM)
 		{
-			var irT = is_undefined(tl.item_res) ? null : tl.item_res
+			var irT = tl.item_res
 			if (irT != null)
 			{
 				var itT = irT.item_sheet_texture
@@ -113,7 +113,7 @@ function xr_bridge_frame()
 		else
 		{
 			var soT = tl.value_inherit[e_value.TEXTURE_OBJ]
-			if (!is_undefined(soT) && soT != null)
+			if (soT != null)
 			{
 				var svT = soT.texture
 				if (svT != null && !is_undefined(svT))
