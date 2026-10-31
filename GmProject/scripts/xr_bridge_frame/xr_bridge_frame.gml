@@ -44,6 +44,32 @@ function xr_bridge_frame()
 		}
 		xr_bridge_ready = 1
 		log("XR bridge init ok", string(project_video_width) + "x" + string(project_video_height))
+		// ==== S4: rebuild static vbuffers ====
+		// Static vbuffers are built with UV=0 placeholders when their
+		// textures aren't assigned yet; the native render path rebuilds
+		// them, which takeover skips. Run MI's own builders once here
+		// (resources are ready at this point, so UVs compute correctly).
+		for (var i = 0; i < ds_list_size(render_list); i++)
+		{
+			var tl = render_list[|i]
+			if (tl = timeline_camera)
+				continue
+			if (tl.temp = null)
+				continue
+			with (tl)
+			{
+				if (type = e_tl_type.BLOCK)
+					temp_update_block()
+				else if (type = e_tl_type.SCENERY)
+					temp_update_block()
+				else if (type_is_shape(type))
+					temp_update_shape()
+				else if (type = e_tl_type.ITEM)
+					render_generate_item()
+			}
+		}
+		log("XR bridge vbuffer rebuild done")
+	}
 		// ==== S4: one-time texture map collection (separate function: the
 		// assignment must happen at a function-body scope that CppGen
 		// resolves to the global, like the working did_render pattern).
