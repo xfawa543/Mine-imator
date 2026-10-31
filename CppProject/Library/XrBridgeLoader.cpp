@@ -47,6 +47,7 @@ namespace CppProject
 	typedef int  (*XrReadFrameFn)(uint8_t*, int, int);
 	typedef int  (*XrTexFn)(uint64_t, int, int, const uint8_t*);
 	typedef void (*XrSetTexFn)(uint64_t);
+	typedef void (*XrSetUvRectFn)(double, double, double, double);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -58,6 +59,7 @@ namespace CppProject
 	static XrReadFrameFn s_read = nullptr;
 	static XrTexFn s_texUp = nullptr;
 	static XrSetTexFn s_setTex = nullptr;
+	static XrSetUvRectFn s_setUv = nullptr;
 	static bool s_tried = false;
 	static int s_frameIndex = 0;
 
@@ -86,7 +88,8 @@ namespace CppProject
 		s_read = (XrReadFrameFn)GetProcAddress(s_bridge, "xr_bridge_read_frame");
 		s_texUp = (XrTexFn)GetProcAddress(s_bridge, "xr_bridge_tex");
 		s_setTex = (XrSetTexFn)GetProcAddress(s_bridge, "xr_bridge_set_texture");
-		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex)
+		s_setUv = (XrSetUvRectFn)GetProcAddress(s_bridge, "xr_bridge_set_uvrect");
+		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv)
 		{
 			s_bridge = nullptr;
 			return false;
@@ -316,6 +319,7 @@ namespace CppProject
 			s_texH[pageKey] = h;
 			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
 		}
+		s_setUv((double)loc->uvRect.x, (double)loc->uvRect.y, (double)loc->uvRect.w, (double)loc->uvRect.h);
 		s_setTex((uint64_t)pageKey);
 		return 1;
 	}
