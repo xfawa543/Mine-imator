@@ -78,6 +78,37 @@ function xr_auto_export_tick()
 	exportmovie_marker_start = 0
 	exportmovie_marker_end = (endm >= 0 ? endm : timeline_length)
 
+	// ==== S4: rebuild static vbuffers in EDITOR context ====
+	// Static vbuffers built before their textures were assigned carry
+	// UV=0 placeholders; MI rebuilds them via the native render path,
+	// which the xr takeover skips. The builder functions are designed
+	// for editor interactions (bench/property actions), so running them
+	// HERE - before the export starts - is the safe context.
+	if (environment_get_variable("XR_BRIDGE") != "" && string(environment_get_variable("XR_BRIDGE")) != "-1")
+	{
+		log("XR vbuffer rebuild start")
+		for (var ri = 0; ri < ds_list_size(render_list); ri++)
+		{
+			var rtl = render_list[|ri]
+			if (rtl = timeline_camera)
+				continue
+			if (rtl.temp = null)
+				continue
+			with (rtl)
+			{
+				if (type = e_tl_type.BLOCK)
+					temp_update_block()
+				else if (type_is_shape(type))
+					temp_update_shape()
+				else if (type = e_tl_type.ITEM)
+					render_generate_item()
+				else if (type = e_tl_type.BODYPART)
+					temp_update_model_shape()
+			}
+		}
+		log("XR vbuffer rebuild complete")
+	}
+
 	log("XR auto export", xr_auto_export_out)
 	movie_set(project_video_width, project_video_height, 2500000, fps, false)
 	var err = movie_start(xr_auto_export_out, "mp4")
