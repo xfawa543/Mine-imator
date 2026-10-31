@@ -259,7 +259,7 @@ namespace CppProject
 			s_regTex((uint64_t)id, 0);
 			return 0;
 		}
-		if (!Generated::sprite_exists(sprite))
+		if (!sprite_exists(sprite))
 		{
 			s_regTex((uint64_t)id, 0);
 			return 0;
