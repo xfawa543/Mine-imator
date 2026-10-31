@@ -5,17 +5,15 @@
 ///       present; every call no-ops when it is missing). The DLL renders
 ///       the queued meshes via the XGraphics mesh path and feeds the frame
 ///       to the in-process encoder (S3 takeover) — and optionally BMPs.
-///       S4: each item's texture is resolved INLINE (direct chained reads
-///       on tl - the same pattern as render_world_* scripts; helper-
-///       function property reads resolve to undefined under CppGen).
+///       S4: per-item textures resolved INLINE (TEXTURE_OBJ chain +
+///       mc_res fallback + sprite_get_texture conversion + per-shape
+///       override for BODYPARTs).
 ///       Enabled ONLY when the environment variable XR_BRIDGE is set to an
 ///       output directory, and only in C++ builds.
 
 globalvar xr_bridge_ready
 globalvar xr_bridge_did_render
 globalvar xr_bridge_takeover_active
-globalvar xr_bridge_tex_map
-globalvar xr_bridge_dbg_n
 
 function xr_bridge_frame()
 {
@@ -45,11 +43,6 @@ function xr_bridge_frame()
 		xr_bridge_ready = 1
 		log("XR bridge init ok", string(project_video_width) + "x" + string(project_video_height))
 	}
-		// ==== S4: one-time texture map collection (separate function: the
-		// assignment must happen at a function-body scope that CppGen
-		// resolves to the global, like the working did_render pattern).
-
-	}
 
 	// Camera: same convention as xr_anim_dump (from = world_pos,
 	// to = (0,1,0) through the camera matrix, up = cm[8..10]).
@@ -70,9 +63,12 @@ function xr_bridge_frame()
 			continue
 		var t = tl.type
 		var m = tl.matrix_render
+
 		// S4: per-item texture. TEXTURE_OBJ chain first; fallback = mc_res
-		// (the block atlas, exactly like render_world_block's
-		// "if (res = null) res = mc_res" - plain cubes have no TEXTURE_OBJ).
+		// (the block atlas, like render_world_block's "if (res = null)
+		// res = mc_res" - plain cubes have no TEXTURE_OBJ). BODYPART:
+		// model_part_shape_tex overrides (per-shape skin). Finally the
+		// sprite id converts to the texture-page location id.
 		var itemTex = 0
 		var tobjT = tl.value_inherit[e_value.TEXTURE_OBJ]
 		if (tobjT != null && !is_undefined(tobjT))
@@ -109,9 +105,6 @@ function xr_bridge_frame()
 			if (stexP != 0)
 				itemTex = stexP
 		}
-		// S4: itemTex is a SPRITE id (block_sheet_texture/texture store
-		// sprites, see render_set_texture) - convert to the texture-page
-		// location id the runtime's texture registry actually keys on.
 		if (itemTex > 0 && sprite_exists(itemTex))
 			itemTex = sprite_get_texture(itemTex, 0)
 
@@ -185,10 +178,9 @@ function xr_bridge_frame()
 			{
 				if (tl.temp = null || tl.temp.scenery = null)
 					break
-				var res = is_undefined(tl.render_res_diffuse) ? null : tl.render_res_diffuse
-				var tintGrass = (res != null ? res.color_grass : -1)
-				var tintFoliage = (res != null ? res.color_foliage : -1)
-				var tintWater = (res != null ? res.color_water : -1)
+				var tintGrass = -1
+				var tintFoliage = -1
+				var tintWater = -1
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
@@ -202,16 +194,7 @@ function xr_bridge_frame()
 							continue
 						if (vbuffer_is_empty(vb))
 							continue
-						var tint = -1
-						if (c = e_block_vbuffer.GRASS)
-							tint = tintGrass
-						else if (c = e_block_vbuffer.FOLIAGE)
-							tint = tintFoliage
-						else if (c = e_block_vbuffer.WATER)
-							tint = tintWater
-						else if (c >= e_block_vbuffer.LEAVES_OAK && c <= e_block_vbuffer.LEAVES_MANGROVE)
-							tint = tintFoliage
-						external_call(lib_xr_bridge_draw_vbuffer, vb, tint, 0)
+						external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 0)
 					}
 				}
 				break
@@ -224,7 +207,6 @@ function xr_bridge_frame()
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
-				external_call(lib_xr_bridge_set_texture, itemTex)
 				for (var d = 0; d < 3; d++)
 				{
 					for (var c = 0; c < 12; c++)
@@ -280,77 +262,6 @@ function xr_bridge_frame()
 	var ms = external_call(lib_xr_bridge_end_frame)
 	xr_bridge_did_render = (ms > 0)
 	return xr_bridge_did_render
-}
-
-// (removed: tex collection superseded by inline loop-top reads)`r`nfunction xr_bridge_tex_collect()
-{
-	// ==== S4: one-time texture map collection (tl.id -> texture id) ====
-	globalvar xr_bridge_tex_map
-globalvar xr_bridge_dbg_n
-	xr_bridge_tex_map = ds_map_create()
-	for (var i = 0; i < ds_list_size(render_list); i++)
-	{
-		var tl = render_list[|i]
-		var tex = 0
-		if (tl.type = e_tl_type.BODYPART)
-		{
-			if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
-			{
-				var arr2 = tl.model_part_shape_tex
-				if (!is_undefined(arr2) && arr2 != null)
-				{
-					var tv2 = arr2[0]
-					if (tv2 != null && !is_undefined(tv2))
-						tex = tv2
-				}
-			}
-		}
-		else if (tl.type = e_tl_type.BLOCK || tl.type = e_tl_type.SCENERY)
-		{
-			var res = is_undefined(tl.render_res_diffuse) ? null : tl.render_res_diffuse
-			if (res != null)
-			{
-				var bt = res.block_sheet_texture
-				if (bt != null && !is_undefined(bt))
-					tex = bt
-			}
-		}
-		else if (tl.type = e_tl_type.ITEM)
-		{
-			var ires = is_undefined(tl.item_res) ? null : tl.item_res
-			if (ires != null)
-			{
-				var it = ires.item_sheet_texture
-				if (it != null && !is_undefined(it))
-					tex = it
-			}
-		}
-		else if (tl.type = e_tl_type.TEXT)
-		{
-			if (tl.text_texture != null && !is_undefined(tl.text_texture))
-				tex = tl.text_texture
-		}
-		else
-		{
-			var sobj = tl.value_inherit[e_value.TEXTURE_OBJ]
-			if (!is_undefined(sobj) && sobj != null)
-			{
-				var sv = sobj.texture
-				if (sv != null && !is_undefined(sv))
-					tex = sv
-			}
-		}
-		ds_map_add(xr_bridge_tex_map, tl.id, tex)
-	}
-	var texCount = 0
-	var texScan = ds_map_find_first(xr_bridge_tex_map)
-	while (!is_undefined(texScan))
-	{
-		if (ds_map_find_value(xr_bridge_tex_map, texScan) != 0)
-			texCount++
-		texScan = ds_map_find_next(xr_bridge_tex_map, texScan)
-	}
-	log("XR bridge tex map:", string(texCount) + " textured items")
 }
 
 function xr_bridge_draw_single(vb, m, tint)
