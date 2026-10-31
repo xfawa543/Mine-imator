@@ -264,7 +264,7 @@ namespace CppProject
 			s_regTex((uint64_t)id, 0);
 			return 0;
 		}
-		const IntType locId = (IntType)Generated::sprite_get_texture(sprite, 0);
+		const IntType locId = (IntType)sprite_get_texture(sprite, 0);
 		TexturePageLocation* loc = TexturePageLocation::Find(locId);
 		if (!loc || !loc->page || !loc->page->texture)
 		{
