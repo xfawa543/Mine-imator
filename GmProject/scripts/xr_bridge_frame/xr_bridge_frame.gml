@@ -58,9 +58,10 @@ function xr_bridge_frame()
 				continue
 			with (tl)
 			{
+				// Only the types temp_update() itself dispatches - SCENERY
+				// has a different temp structure (temp.scenery) and crashes
+				// in the block builder, so it keeps white textures for now.
 				if (type = e_tl_type.BLOCK)
-					temp_update_block()
-				else if (type = e_tl_type.SCENERY)
 					temp_update_block()
 				else if (type_is_shape(type))
 					temp_update_shape()
