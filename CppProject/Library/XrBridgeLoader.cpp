@@ -48,6 +48,8 @@ namespace CppProject
 	typedef int  (*XrTexFn)(uint64_t, int, int, const uint8_t*);
 	typedef void (*XrSetTexFn)(uint64_t);
 	typedef void (*XrSetUvRectFn)(double, double, double, double);
+	typedef void (*XrRegTexFn)(uint64_t, uint64_t);
+	typedef void (*XrSetTexForFn)(uint64_t);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -60,6 +62,8 @@ namespace CppProject
 	static XrTexFn s_texUp = nullptr;
 	static XrSetTexFn s_setTex = nullptr;
 	static XrSetUvRectFn s_setUv = nullptr;
+	static XrRegTexFn s_regTex = nullptr;
+	static XrSetTexForFn s_setTexFor = nullptr;
 	static bool s_tried = false;
 	static int s_frameIndex = 0;
 
@@ -89,7 +93,9 @@ namespace CppProject
 		s_texUp = (XrTexFn)GetProcAddress(s_bridge, "xr_bridge_tex");
 		s_setTex = (XrSetTexFn)GetProcAddress(s_bridge, "xr_bridge_set_texture");
 		s_setUv = (XrSetUvRectFn)GetProcAddress(s_bridge, "xr_bridge_set_uvrect");
-		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv)
+		s_regTex = (XrRegTexFn)GetProcAddress(s_bridge, "xr_bridge_register_item_tex");
+		s_setTexFor = (XrSetTexForFn)GetProcAddress(s_bridge, "xr_bridge_set_tex_for");
+		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
 			s_bridge = nullptr;
 			return false;
@@ -230,12 +236,100 @@ namespace CppProject
 	}
 
 	// ==== S4: texture bridge ====
+	static uint64_t s_itemTexPending = 0;
 	// MI texture ids are TexturePageLocation ids (texture-page atlas
 	// sub-rects). The vertices' UVs are page coordinates, so the WHOLE page
 	// is uploaded once (cached by the page texture's id) and shared.
 	static QHash<IntType, QByteArray> s_texPixels;
+	static QHash<IntType, UvRect> s_itemUvRect;
 	static QHash<IntType, int> s_texW, s_texH;
 
+
+	// S4: registers one item's texture (sprite id) resolved at INIT time,
+	// where GML property reads are reliable. Resolves sprite -> page
+	// location -> (page upload + uvRect) and stores it for the tl id.
+	RealType lib_xr_bridge_register_item_tex(RealType tlId, RealType spriteId)
+	{
+		if (!s_regTex)
+			return 0;
+		const IntType id = (IntType)tlId;
+		const IntType sprite = (IntType)spriteId;
+		if (sprite <= 0)
+		{
+			s_regTex((uint64_t)id, 0);
+			return 0;
+		}
+		if (!Generated::sprite_exists(sprite))
+		{
+			s_regTex((uint64_t)id, 0);
+			return 0;
+		}
+		const IntType locId = (IntType)Generated::sprite_get_texture(sprite, 0);
+		TexturePageLocation* loc = TexturePageLocation::Find(locId);
+		if (!loc || !loc->page || !loc->page->texture)
+		{
+			s_regTex((uint64_t)id, 0);
+			return 0;
+		}
+		Texture* pageTex = loc->page->texture;
+		const IntType pageKey = pageTex->GetId();
+		if (!s_texPixels.contains(pageKey))
+		{
+			ID3D11Resource* res = nullptr;
+			pageTex->d3dTex->QueryInterface(__uuidof(ID3D11Resource), (void**)&res);
+			if (!res) { s_regTex((uint64_t)id, 0); return 0; }
+			ID3D11Texture2D* tex = (ID3D11Texture2D*)res;
+			D3D11_TEXTURE2D_DESC desc; tex->GetDesc(&desc);
+			D3D11_TEXTURE2D_DESC sd = desc;
+			sd.Usage = D3D11_USAGE_STAGING; sd.BindFlags = 0;
+			sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ; sd.MiscFlags = 0;
+			ID3D11Texture2D* staging = nullptr;
+			if (FAILED(D3DDevice->CreateTexture2D(&sd, nullptr, &staging)))
+			{ res->Release(); s_regTex((uint64_t)id, 0); return 0; }
+			D3DContext->CopyResource(staging, tex);
+			D3D11_MAPPED_SUBRESOURCE mapped = {};
+			if (FAILED(D3DContext->Map(staging, 0, D3D11_MAP_READ, 0, &mapped)))
+			{ staging->Release(); res->Release(); s_regTex((uint64_t)id, 0); return 0; }
+			const int w = (int)desc.Width, h = (int)desc.Height;
+			QByteArray rgba((int)w * h * 4, 0);
+			const bool bgra = (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM || desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS);
+			const IntType rowBytes = w * 4;
+			for (int y = 0; y < h; y++)
+			{
+				const uchar* src = (const uchar*)mapped.pData + (qint64)y * mapped.RowPitch;
+				uchar* dst = (uchar*)rgba.data() + (qint64)y * rowBytes;
+				if (bgra) { for (int x = 0; x < w; x++) { dst[x*4+0]=src[x*4+2]; dst[x*4+1]=src[x*4+1]; dst[x*4+2]=src[x*4+0]; dst[x*4+3]=src[x*4+3]; } }
+				else memcpy(dst, src, rowBytes);
+			}
+			D3DContext->Unmap(staging, 0);
+			staging->Release();
+			res->Release();
+			s_texPixels[pageKey] = rgba;
+			s_texW[pageKey] = w;
+			s_texH[pageKey] = h;
+			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
+		}
+		s_regTex((uint64_t)id, (uint64_t)pageKey);
+		s_itemUvRect[id] = loc->uvRect;
+		return 1;
+	}
+	// S4: per-frame - sets the current texture to the registered one for
+	// the given tl id (DLL-side lookup; no GML property reads per frame).
+	RealType lib_xr_bridge_set_tex_for(RealType tlId)
+	{
+		if (!s_setTexFor)
+			return 0;
+		const IntType id = (IntType)tlId;
+		if (s_itemUvRect.contains(id))
+		{
+			const UvRect& uv = s_itemUvRect[id];
+			s_setUv((double)uv.x, (double)uv.y, (double)uv.w, (double)uv.h);
+		}
+		else
+			s_setUv(0, 0, 1, 1);
+		s_setTexFor((uint64_t)id);
+		return 1;
+	}
 	RealType lib_xr_bridge_set_texture(RealType texId)
 	{
 		if (!s_setTex)
@@ -321,6 +415,7 @@ namespace CppProject
 		}
 		s_setUv((double)loc->uvRect.x, (double)loc->uvRect.y, (double)loc->uvRect.w, (double)loc->uvRect.h);
 		s_setTex((uint64_t)pageKey);
+		s_itemTexPending = pageKey;
 		return 1;
 	}
 }
