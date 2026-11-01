@@ -256,8 +256,6 @@ namespace CppProject
 			memcpy(dst, src, w * 4);
 		}
 		s_texPixels[pageKey] = rgba;
-		s_texW[pageKey] = w;
-		s_texH[pageKey] = h;
 		if (s_texUp) s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
 		if (s_setUv) s_setUv(0, 0, 1, 1); // default uvRect
 	}
@@ -406,8 +404,6 @@ namespace CppProject
 			staging->Release();
 			res->Release();
 			s_texPixels[pageKey] = rgba;
-			s_texW[pageKey] = w;
-			s_texH[pageKey] = h;
 			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
 		}
 		s_setUv((double)loc->uvRect.x, (double)loc->uvRect.y, (double)loc->uvRect.w, (double)loc->uvRect.h);
