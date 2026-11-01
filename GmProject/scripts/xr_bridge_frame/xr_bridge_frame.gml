@@ -34,77 +34,7 @@ function xr_bridge_frame()
 		}
 		xr_bridge_ready = 1
 		log("XR bridge init ok", string(project_video_width) + "x" + string(project_video_height))
-		// ==== S4: register all item textures ONCE at init ====
-		// Init-time property reads are reliable (verified: mc=23761).
-		// Loop-scope reads under CppGen resolve to 0, so we do all texture
-		// resolution here and store the results in the DLL's registry.
-		for (var ri = 0; ri < ds_list_size(render_list); ri++)
-		{
-			var rtl = render_list[|ri]
-			if (rtl = timeline_camera)
-				continue
-			var rt = rtl.type
-			var rtex = 0
-			if (rt = e_tl_type.BODYPART)
-			{
-				if (rtl.model_part != null && ds_exists(rtl.model_part.shape_list, ds_type_list))
-				{
-					var arrT = rtl.model_part_shape_tex
-					if (arrT != null && !is_undefined(arrT))
-					{
-						var tvT = arrT[0]
-						if (tvT != null && !is_undefined(tvT))
-							rtex = tvT
-					}
-				}
-			}
-			else if (rt = e_tl_type.BLOCK || rt = e_tl_type.SCENERY)
-			{
-				var resT = rtl.render_res_diffuse
-				if (resT != null && !is_undefined(resT))
-				{
-					var btT = resT.block_sheet_texture
-					if (btT != null && !is_undefined(btT))
-						rtex = btT
-				}
-			}
-			else if (rt = e_tl_type.ITEM)
-			{
-				var irT = rtl.item_res
-				if (irT != null && !is_undefined(irT))
-				{
-					var itT = irT.item_sheet_texture
-					if (itT != null && !is_undefined(itT))
-						rtex = itT
-				}
-			}
-			else if (rt = e_tl_type.TEXT)
-			{
-				if (rtl.text_texture != null && !is_undefined(rtl.text_texture))
-					rtex = rtl.text_texture
-			}
-			else
-			{
-				var soT = rtl.value_inherit[e_value.TEXTURE_OBJ]
-				if (soT != null && !is_undefined(soT))
-				{
-					var svT = soT.texture
-					if (svT != null && !is_undefined(svT))
-						rtex = svT
-					else
-					{
-						var sbT = soT.block_sheet_texture
-						if (sbT != null && !is_undefined(sbT))
-							rtex = sbT
-					}
-				}
-			}
-			// Convert sprite id to texture-page location id
-			if (rtex > 0 && sprite_exists(rtex))
-				rtex = sprite_get_texture(rtex, 0)
-			external_call(lib_xr_bridge_register_item_tex, rtl.id, rtex)
-		}
-		log("XR bridge texture registry done")
+		external_call(lib_xr_bridge_auto_tex)
 	}
 
 	// Camera
