@@ -294,9 +294,12 @@ namespace CppProject
 			QByteArray rgba((int)w * h * 4, 0);
 			const bool bgra = (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM || desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS);
 			const IntType rowBytes = w * 4;
+			// Copy rows FLIPPED: D3D staging is top-down, GL v=0 = bottom.
+			// This makes the GL texture match D3D's UV convention exactly,
+			// so vbuffer UVs (computed for D3D) sample correctly in GL.
 			for (int y = 0; y < h; y++)
 			{
-				const uchar* src = (const uchar*)mapped.pData + (qint64)y * mapped.RowPitch;
+				const uchar* src = (const uchar*)mapped.pData + (qint64)(h - 1 - y) * mapped.RowPitch;
 				uchar* dst = (uchar*)rgba.data() + (qint64)y * rowBytes;
 				if (bgra) { for (int x = 0; x < w; x++) { dst[x*4+0]=src[x*4+2]; dst[x*4+1]=src[x*4+1]; dst[x*4+2]=src[x*4+0]; dst[x*4+3]=src[x*4+3]; } }
 				else memcpy(dst, src, rowBytes);
