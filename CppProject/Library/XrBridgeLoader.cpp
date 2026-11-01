@@ -268,4 +268,12 @@ namespace CppProject
 		s_setTex((uint64_t)pageKey);
 		return 1;
 	}
+	// S4: per-frame texture lookup by tl id (DLL-side registry).
+	RealType lib_xr_bridge_set_tex_for(RealType tlId)
+	{
+		if (!s_setTexFor)
+			return 0;
+		s_setTexFor((uint64_t)(IntType)tlId);
+		return 1;
+	}
 }
