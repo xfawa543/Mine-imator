@@ -67,7 +67,7 @@ function xr_auto_export_tick()
 	popup_exportmovie.framespersecond = fps
 	popup_exportmovie.high_quality = qual
 	popup_exportmovie.bit_rate = 2500000
-	popup_exportmovie.include_audio = false
+	popup_exportmovie.include_audio = true
 
 	export_filename = xr_auto_export_out
 	exportmovie_marker_previous = timeline_marker
