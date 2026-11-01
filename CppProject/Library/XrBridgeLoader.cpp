@@ -251,9 +251,7 @@ namespace CppProject
 			return 0;
 		Texture* pageTex = loc->page->texture;
 		IntType pageKey = pageTex->GetId();
-		if (!s_texPixels.contains(pageKey))
 		{
-			// Read page QImage, upload to GL (rows as-is, D3D convention)
 			const QImage& img = loc->page->image;
 			int w = img.width(), h = img.height();
 			QByteArray rgba((int)w * h * 4, 0);
@@ -263,8 +261,7 @@ namespace CppProject
 				uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
 				memcpy(dst, src, w * 4);
 			}
-			s_texPixels[pageKey] = rgba;
-			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
+			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)rgba.constData());
 		}
 		// Set the uvRect for this sprite's position on the page
 		s_setUv((double)loc->uvRect.x, (double)loc->uvRect.y, (double)loc->uvRect.w, (double)loc->uvRect.h);
