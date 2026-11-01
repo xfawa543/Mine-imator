@@ -74,6 +74,8 @@ function lib_startup()
 	lib_xr_bridge_draw_vbuffer = external_define(pathfile, "xr_bridge_draw_vbuffer", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_real)
 	lib_xr_bridge_end_frame = external_define(pathfile, "xr_bridge_end_frame", dll_cdecl, ty_real, 0)
 	lib_xr_bridge_set_texture = external_define(pathfile, "xr_bridge_set_texture", dll_cdecl, ty_real, 1, ty_real)
+	lib_xr_bridge_register_item_tex = external_define(pathfile, "xr_bridge_register_item_tex", dll_cdecl, ty_real, 2, ty_real, ty_real)
+	lib_xr_bridge_set_tex_for = external_define(pathfile, "xr_bridge_set_tex_for", dll_cdecl, ty_real, 1, ty_real)
 	
 	// Movie library
 	log("External library", pathmovie)
