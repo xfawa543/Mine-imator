@@ -36,6 +36,7 @@ function lib_startup()
 	globalvar lib_xr_bridge_set_shape_matrix, lib_xr_bridge_draw_vbuffer, lib_xr_bridge_end_frame;
 	globalvar lib_xr_bridge_set_texture;
 	globalvar lib_xr_bridge_register_item_tex, lib_xr_bridge_set_tex_for;
+	globalvar lib_xr_bridge_auto_tex;
 	
 	// Window library
 	log("External library", pathwindow)
@@ -76,6 +77,7 @@ function lib_startup()
 	lib_xr_bridge_set_texture = external_define(pathfile, "xr_bridge_set_texture", dll_cdecl, ty_real, 1, ty_real)
 	lib_xr_bridge_register_item_tex = external_define(pathfile, "xr_bridge_register_item_tex", dll_cdecl, ty_real, 2, ty_real, ty_real)
 	lib_xr_bridge_set_tex_for = external_define(pathfile, "xr_bridge_set_tex_for", dll_cdecl, ty_real, 1, ty_real)
+	lib_xr_bridge_auto_tex = external_define(pathfile, "xr_bridge_auto_tex", dll_cdecl, ty_real, 0)
 	
 	// Movie library
 	log("External library", pathmovie)
