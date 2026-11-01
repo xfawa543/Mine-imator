@@ -61,7 +61,6 @@ namespace CppProject
 	static XrReadFrameFn s_read = nullptr;
 	static XrTexFn s_texUp = nullptr;
 	static XrSetTexFn s_setTex = nullptr;
-	static XrSetTexFn s_setTex = nullptr;
 	static XrSetUvRectFn s_setUv = nullptr;
 	static XrRegTexFn s_regTex = nullptr;
 	static XrSetTexForFn s_setTexFor = nullptr;
