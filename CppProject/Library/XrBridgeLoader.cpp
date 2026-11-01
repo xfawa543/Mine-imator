@@ -275,42 +275,26 @@ namespace CppProject
 		const IntType pageKey = pageTex->GetId();
 		if (!s_texPixels.contains(pageKey))
 		{
-			ID3D11Resource* res = nullptr;
-			pageTex->d3dTex->QueryInterface(__uuidof(ID3D11Resource), (void**)&res);
-			if (!res) { s_regTex((uint64_t)id, 0); return 0; }
-			ID3D11Texture2D* tex = (ID3D11Texture2D*)res;
-			D3D11_TEXTURE2D_DESC desc; tex->GetDesc(&desc);
-			D3D11_TEXTURE2D_DESC sd = desc;
-			sd.Usage = D3D11_USAGE_STAGING; sd.BindFlags = 0;
-			sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ; sd.MiscFlags = 0;
-			ID3D11Texture2D* staging = nullptr;
-			if (FAILED(D3DDevice->CreateTexture2D(&sd, nullptr, &staging)))
-			{ res->Release(); s_regTex((uint64_t)id, 0); return 0; }
-			D3DContext->CopyResource(staging, tex);
-			D3D11_MAPPED_SUBRESOURCE mapped = {};
-			if (FAILED(D3DContext->Map(staging, 0, D3D11_MAP_READ, 0, &mapped)))
-			{ staging->Release(); res->Release(); s_regTex((uint64_t)id, 0); return 0; }
-			const int w = (int)desc.Width, h = (int)desc.Height;
+			// Read from the CPU-side QImage (the authoritative page data).
+			// This bypasses all D3D staging complexity and gets the exact
+			// data that MI's builder wrote when creating the page.
+			const QImage& pageImg = loc->page->image;
+			const int w = pageImg.width(), h = pageImg.height();
 			QByteArray rgba((int)w * h * 4, 0);
-			const bool bgra = (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM || desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS);
-			const IntType rowBytes = w * 4;
-			// Copy rows FLIPPED: D3D staging is top-down, GL v=0 = bottom.
-			// This makes the GL texture match D3D's UV convention exactly,
-			// so vbuffer UVs (computed for D3D) sample correctly in GL.
+			// QImage::Format_RGBA8888: bytes are R,G,B,A per pixel, top-down.
+			// Convert to GL-friendly RGBA (same order) but flip rows for GL.
 			for (int y = 0; y < h; y++)
 			{
-				const uchar* src = (const uchar*)mapped.pData + (qint64)(h - 1 - y) * mapped.RowPitch;
-				uchar* dst = (uchar*)rgba.data() + (qint64)y * rowBytes;
-				if (bgra) { for (int x = 0; x < w; x++) { dst[x*4+0]=src[x*4+2]; dst[x*4+1]=src[x*4+1]; dst[x*4+2]=src[x*4+0]; dst[x*4+3]=src[x*4+3]; } }
-				else memcpy(dst, src, rowBytes);
+				const uchar* src = pageImg.constScanLine(y);
+				uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
+				memcpy(dst, src, w * 4);
 			}
-			D3DContext->Unmap(staging, 0);
-			staging->Release();
-			res->Release();
 			s_texPixels[pageKey] = rgba;
 			s_texW[pageKey] = w;
 			s_texH[pageKey] = h;
 			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
+		}
+			D3DContext->Unmap(staging, 0);
 		}
 		s_regTex((uint64_t)id, (uint64_t)pageKey);
 		s_itemUvRect[id] = loc->uvRect;
