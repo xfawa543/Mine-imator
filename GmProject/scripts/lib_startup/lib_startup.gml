@@ -35,6 +35,7 @@ function lib_startup()
 	globalvar lib_xr_bridge_init, lib_xr_bridge_begin_frame, lib_xr_bridge_set_matrix;
 	globalvar lib_xr_bridge_set_shape_matrix, lib_xr_bridge_draw_vbuffer, lib_xr_bridge_end_frame;
 	globalvar lib_xr_bridge_set_texture;
+	globalvar lib_xr_bridge_register_item_tex, lib_xr_bridge_set_tex_for;
 	
 	// Window library
 	log("External library", pathwindow)
