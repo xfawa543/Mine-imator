@@ -235,31 +235,40 @@ namespace CppProject
 		return (RealType)ms;
 	}
 
-	// ==== S4: texture bridge ====
-	static uint64_t s_itemTexPending = 0;
-	// MI texture ids are TexturePageLocation ids (texture-page atlas
-	// sub-rects). The vertices' UVs are page coordinates, so the WHOLE page
-	// is uploaded once (cached by the page texture's id) and shared.
+	// ==== S4: texture bridge (clean implementation) ====
+	// Resolves a sprite id to a TexturePageLocation, reads the CPU-side
+	// QImage (the authoritative page data), uploads to GL via the DLL,
+	// and stores the uvRect for the DLL's UV transform. No D3D staging.
 	static QHash<IntType, QByteArray> s_texPixels;
 	static QHash<IntType, UvRect> s_itemUvRect;
-	static QHash<IntType, int> s_texW, s_texH;
 
+	// Internal: reads and uploads a page if not already cached.
+	void EnsurePageUploaded(IntType pageKey, TexturePage* page)
+	{
+		if (s_texPixels.contains(pageKey)) return;
+		const QImage& img = page->image;
+		const int w = img.width(), h = img.height();
+		QByteArray rgba((int)w * h * 4, 0);
+		for (int y = 0; y < h; y++)
+		{
+			const uchar* src = img.constScanLine(y);
+			uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
+			memcpy(dst, src, w * 4);
+		}
+		s_texPixels[pageKey] = rgba;
+		s_texW[pageKey] = w;
+		s_texH[pageKey] = h;
+		if (s_texUp) s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
+		if (s_setUv) s_setUv(0, 0, 1, 1); // default uvRect
+	}
 
-	// S4: registers one item's texture (sprite id) resolved at INIT time,
-	// where GML property reads are reliable. Resolves sprite -> page
-	// location -> (page upload + uvRect) and stores it for the tl id.
+	// Registers one item's texture (sprite id) resolved at INIT time.
 	RealType lib_xr_bridge_register_item_tex(RealType tlId, RealType spriteId)
 	{
-		if (!s_regTex)
-			return 0;
+		if (!s_regTex) return 0;
 		const IntType id = (IntType)tlId;
 		const IntType sprite = (IntType)spriteId;
-		if (sprite <= 0)
-		{
-			s_regTex((uint64_t)id, 0);
-			return 0;
-		}
-		if (!sprite_exists(sprite))
+		if (sprite <= 0 || !sprite_exists(sprite))
 		{
 			s_regTex((uint64_t)id, 0);
 			return 0;
@@ -271,37 +280,38 @@ namespace CppProject
 			s_regTex((uint64_t)id, 0);
 			return 0;
 		}
-		Texture* pageTex = loc->page->texture;
-		const IntType pageKey = pageTex->GetId();
-		if (!s_texPixels.contains(pageKey))
-		{
-			// Read from the CPU-side QImage (the authoritative page data).
-			// This bypasses all D3D staging complexity and gets the exact
-			// data that MI's builder wrote when creating the page.
-			const QImage& pageImg = loc->page->image;
-			const int w = pageImg.width(), h = pageImg.height();
-			QByteArray rgba((int)w * h * 4, 0);
-			// QImage::Format_RGBA8888: bytes are R,G,B,A per pixel, top-down.
-			// Convert to GL-friendly RGBA (same order) but flip rows for GL.
-			for (int y = 0; y < h; y++)
-			{
-				const uchar* src = pageImg.constScanLine(y);
-				uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
-				memcpy(dst, src, w * 4);
-			}
-			s_texPixels[pageKey] = rgba;
-			s_texW[pageKey] = w;
-			s_texH[pageKey] = h;
-			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)s_texPixels[pageKey].constData());
-		}
-			D3DContext->Unmap(staging, 0);
-		}
+		const IntType pageKey = loc->page->texture->GetId();
+		EnsurePageUploaded(pageKey, loc->page);
 		s_regTex((uint64_t)id, (uint64_t)pageKey);
 		s_itemUvRect[id] = loc->uvRect;
 		return 1;
 	}
-	// S4: per-frame - sets the current texture to the registered one for
-	// the given tl id (DLL-side lookup; no GML property reads per frame).
+
+	// Sets the current texture by sprite id (also resolves + uploads).
+	RealType lib_xr_bridge_set_texture(RealType texId)
+	{
+		if (!s_setTex || !s_setUv) return 0;
+		const IntType id = (IntType)texId;
+		if (id <= 0 || !sprite_exists(id))
+		{
+			s_setUv(0, 0, 1, 1);
+			s_setTex(1); // white fallback
+			return 0;
+		}
+		const IntType locId = (IntType)sprite_get_texture(id, 0);
+		TexturePageLocation* loc = TexturePageLocation::Find(locId);
+		if (!loc || !loc->page || !loc->page->texture)
+		{
+			s_setUv(0, 0, 1, 1);
+			s_setTex(1);
+			return 0;
+		}
+		const IntType pageKey = loc->page->texture->GetId();
+		EnsurePageUploaded(pageKey, loc->page);
+		s_setUv((double)loc->uvRect.x, (double)loc->uvRect.y, (double)loc->uvRect.w, (double)loc->uvRect.h);
+		s_setTex((uint64_t)pageKey);
+		return 1;
+	}
 	RealType lib_xr_bridge_set_tex_for(RealType tlId)
 	{
 		if (!s_setTexFor)
