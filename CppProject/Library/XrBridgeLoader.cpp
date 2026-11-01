@@ -53,6 +53,8 @@ namespace CppProject
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
+	static HMODULE s_bridge = nullptr;
+	static bool s_tried = false;
 	static XrBeginFrameFn s_begin = nullptr;
 	static XrSetMatrixFn s_setMatrix = nullptr;
 	static XrSetMatrixFn s_setShape = nullptr;
