@@ -255,6 +255,25 @@ namespace CppProject
 		return (RealType)ms;
 	}
 
+	// ==== S4 texture upload helpers (shared by auto_tex + reg_shape) ====
+	static std::set<uint64_t> s_uploadedTex;
+
+	static bool XrUploadQImage(const QImage& img, uint64_t key)
+	{
+		if (!s_texUp || img.isNull())
+			return false;
+		const int w = img.width(), h = img.height();
+		QByteArray rgba((qint64)w * h * 4, 0);
+		for (int y = 0; y < h; y++)
+		{
+			const uchar* src = img.constScanLine(y);
+			uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
+			memcpy(dst, src, w * 4);
+		}
+		s_texUp(key, w, h, (const uint8_t*)rgba.constData());
+		return true;
+	}
+
 	// ==== S4: AUTO texture - upload ALL pages + diagnostics ====
 	// Every texture page is uploaded once, keyed by the page pointer (unique,
 	// stable, no dependency on lazy GL texture creation). The current texture
@@ -308,23 +327,6 @@ namespace CppProject
 		return uploaded > 0 ? 1 : 0;
 	}
 
-	static std::set<uint64_t> s_uploadedTex;
-
-	static bool XrUploadQImage(const QImage& img, uint64_t key)
-	{
-		if (!s_texUp || img.isNull())
-			return false;
-		const int w = img.width(), h = img.height();
-		QByteArray rgba((qint64)w * h * 4, 0);
-		for (int y = 0; y < h; y++)
-		{
-			const uchar* src = img.constScanLine(y);
-			uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
-			memcpy(dst, src, w * 4);
-		}
-		s_texUp(key, w, h, (const uint8_t*)rgba.constData());
-		return true;
-	}
 	// ==== S4: per-shape / per-item texture registry ====
 	// Resolves a sprite to its texture and registers it under a GML-side
 	// key (a shape instance id for BODYPART shapes, a tl id otherwise).
