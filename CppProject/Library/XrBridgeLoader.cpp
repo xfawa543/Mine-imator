@@ -103,6 +103,21 @@ namespace CppProject
 		return true;
 	}
 
+	// S4: diagnostics file (<prefix>\xr_loader_log.txt), set at init.
+	static std::string s_diagPath;
+
+	static void XrDiag(const std::string& msg)
+	{
+		if (s_diagPath.empty())
+			return;
+		FILE* f = fopen(s_diagPath.c_str(), "ab");
+		if (f)
+		{
+			fputs((msg + "\r\n").c_str(), f);
+			fclose(f);
+		}
+	}
+
 	// Initializes the bridge (hidden GL surface + mesh backend) and stores
 	// the BMP output prefix. Returns 1 on success, 0 when the DLL is absent
 	// or initialization failed.
@@ -111,6 +126,8 @@ namespace CppProject
 		if (!LoadBridge())
 			return 0;
 		const QByteArray u8 = ((QString)prefix).toUtf8();
+		s_diagPath = std::string(u8.constData()) + "\\xr_loader_log.txt";
+		XrDiag("init ok");
 		s_frameIndex = 0;
 		return (RealType)s_init((int)(IntType)width, (int)(IntType)height, u8.constData());
 	}
@@ -235,38 +252,62 @@ namespace CppProject
 		return (RealType)ms;
 	}
 
-	// ==== S4: AUTO texture - C++ direct read of mc_res ====
-	// Reads mc_res.block_sheet_texture directly in C++ (no GML/CppGen).
-	// Uploads the page texture and sets it as the global texture for ALL items.
+	// ==== S4: AUTO texture - upload ALL pages + diagnostics ====
+	// Every texture page is uploaded once, keyed by the page pointer (unique,
+	// stable, no dependency on lazy GL texture creation). The current texture
+	// becomes the page holding mc_res.block_sheet_texture (fallback: first
+	// uploaded page). Typed member access bypasses dynamic-index uncertainty.
 	RealType lib_xr_bridge_auto_tex()
 	{
-		if (!s_setTex || !s_setUv || !s_texUp)
-			return 0;
-		IntType texSprite = idInt(global::mc_res, block_sheet_texture);
-		if (texSprite <= 0 || !sprite_exists(texSprite))
-			return 0;
-		IntType locId = (IntType)sprite_get_texture(texSprite, 0);
-		TexturePageLocation* loc = TexturePageLocation::Find(locId);
-		if (!loc || !loc->page || !loc->page->texture)
-			return 0;
-		Texture* pageTex = loc->page->texture;
-		IntType pageKey = pageTex->GetId();
+		if (!s_texUp || !s_setTex)
 		{
-			const QImage& img = loc->page->image;
-			int w = img.width(), h = img.height();
-			QByteArray rgba((int)w * h * 4, 0);
+			XrDiag("auto_tex: pfns null");
+			return 0;
+		}
+		int uploaded = 0;
+		IntType firstKey = 0;
+		const int pageCount = (int)TexturePage::pages.size();
+		for (int pi = 0; pi < pageCount; pi++)
+		{
+			TexturePage* page = TexturePage::pages[pi];
+			if (!page || page->image.isNull())
+				continue;
+			const QImage& img = page->image;
+			const int w = img.width(), h = img.height();
+			QByteArray rgba((qint64)w * h * 4, 0);
 			for (int y = 0; y < h; y++)
 			{
 				const uchar* src = img.constScanLine(y);
 				uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
 				memcpy(dst, src, w * 4);
 			}
-			s_texUp((uint64_t)pageKey, w, h, (const uint8_t*)rgba.constData());
+			const IntType key = (IntType)(size_t)page;
+			s_texUp((uint64_t)key, w, h, (const uint8_t*)rgba.constData());
+			if (!firstKey)
+				firstKey = key;
+			uploaded++;
 		}
-		// Set the uvRect for this sprite's position on the page
-		s_setUv((double)loc->uvRect.x, (double)loc->uvRect.y, (double)loc->uvRect.w, (double)loc->uvRect.h);
-		s_setTex((uint64_t)pageKey);
-		return 1;
+		XrDiag("auto_tex: pages=" + std::to_string(pageCount) +
+			" uploaded=" + std::to_string(uploaded));
+
+		IntType curKey = firstKey;
+		obj_resource* res = ObjTypeOpt(obj_resource, global::mc_res);
+		const IntType texSprite = res ? res->block_sheet_texture : 0;
+		XrDiag("auto_tex: mc_res=" + std::to_string((IntType)global::mc_res) +
+			" block_sheet_texture=" + std::to_string(texSprite));
+		if (texSprite > 0)
+		{
+			const IntType locId = (IntType)sprite_get_texture(texSprite, 0);
+			TexturePageLocation* loc = TexturePageLocation::Find(locId);
+			XrDiag("auto_tex: locId=" + std::to_string(locId) +
+				" loc=" + std::to_string((size_t)loc) +
+				" page=" + std::to_string(loc ? (size_t)loc->page : 0));
+			if (loc && loc->page)
+				curKey = (IntType)(size_t)loc->page;
+		}
+		XrDiag("auto_tex: curKey=" + std::to_string(curKey));
+		s_setTex((uint64_t)curKey);
+		return uploaded > 0 ? 1 : 0;
 	}
 	// S4: per-frame texture lookup by tl id (DLL-side registry).
 	RealType lib_xr_bridge_set_tex_for(RealType tlId)
