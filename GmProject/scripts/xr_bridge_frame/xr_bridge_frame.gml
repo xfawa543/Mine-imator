@@ -35,6 +35,35 @@ function xr_bridge_frame()
 		xr_bridge_ready = 1
 		log("XR bridge init ok", string(project_video_width) + "x" + string(project_video_height))
 		external_call(lib_xr_bridge_auto_tex)
+
+		// ==== S4: per-shape / per-item texture registry ====
+		// BODYPART: per-shape skins from model_part_shape_tex[s] (the same
+		// array the native path uses in render_world_model_part), keyed by
+		// shape instance id - exactly the keys of model_shape_vbuffer_map.
+		// Everything else: the block sheet (mc_res.block_sheet_texture),
+		// keyed by tl id. Keys are looked up per frame by set_tex_for.
+		var regSheet = mc_res.block_sheet_texture
+		for (var ri = 0; ri < ds_list_size(render_list); ri++)
+		{
+			var rtl = render_list[|ri]
+			if (rtl = timeline_camera)
+				continue
+			if (rtl.type = e_tl_type.BODYPART)
+			{
+				if (rtl.model_part != null && ds_exists(rtl.model_part.shape_list, ds_type_list)
+					&& rtl.model_part_shape_tex != null && !is_undefined(rtl.model_part_shape_tex))
+				{
+					for (var rs = 0; rs < ds_list_size(rtl.model_part.shape_list); rs++)
+					{
+						var rspr = rtl.model_part_shape_tex[rs]
+						if (rspr > 0 && sprite_exists(rspr))
+							external_call(lib_xr_bridge_reg_shape, rtl.model_part.shape_list[|rs].id, rspr)
+					}
+				}
+			}
+			else if (regSheet > 0 && sprite_exists(regSheet))
+				external_call(lib_xr_bridge_reg_shape, rtl.id, regSheet)
+		}
 	}
 
 	// Camera
@@ -55,8 +84,10 @@ function xr_bridge_frame()
 		var t = tl.type
 		var m = tl.matrix_render
 
-		// S4: per-frame texture lookup by tl id (DLL-side map)
-		external_call(lib_xr_bridge_set_tex_for, tl.id)
+		// S4: per-frame texture lookup. BODYPART is keyed per SHAPE inside
+		// its vbuffer-map loop below; all other types by tl id here.
+		if (t != e_tl_type.BODYPART)
+			external_call(lib_xr_bridge_set_tex_for, tl.id)
 
 		switch (t)
 		{
@@ -77,6 +108,7 @@ function xr_bridge_frame()
 							external_call(lib_xr_bridge_set_shape_matrix,
 								sm[0], sm[1], sm[2], sm[3], sm[4], sm[5], sm[6], sm[7],
 								sm[8], sm[9], sm[10], sm[11], sm[12], sm[13], sm[14], sm[15])
+							external_call(lib_xr_bridge_set_tex_for, string_get_real(key))
 							external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 1)
 						}
 						key = ds_map_find_next(tl.model_shape_vbuffer_map, key)

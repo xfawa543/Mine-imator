@@ -21,6 +21,9 @@
 // permutation (S*M*S) and vertex y/z swaps internally.
 
 #include "Generated/Scripts.hpp"
+#include "Asset/Sprite.hpp"
+
+#include <set>
 
 #include "Asset/VertexBuffer.hpp"
 #include "Render/Mesh.hpp"
@@ -272,17 +275,12 @@ namespace CppProject
 			TexturePage* page = TexturePage::pages[pi];
 			if (!page || page->image.isNull())
 				continue;
-			const QImage& img = page->image;
-			const int w = img.width(), h = img.height();
-			QByteArray rgba((qint64)w * h * 4, 0);
-			for (int y = 0; y < h; y++)
-			{
-				const uchar* src = img.constScanLine(y);
-				uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
-				memcpy(dst, src, w * 4);
-			}
 			const IntType key = (IntType)(size_t)page;
-			s_texUp((uint64_t)key, w, h, (const uint8_t*)rgba.constData());
+			if (!s_uploadedTex.count((uint64_t)key))
+			{
+				s_uploadedTex.insert((uint64_t)key);
+				XrUploadQImage(page->image, (uint64_t)key);
+			}
 			if (!firstKey)
 				firstKey = key;
 			uploaded++;
@@ -308,6 +306,70 @@ namespace CppProject
 		XrDiag("auto_tex: curKey=" + std::to_string(curKey));
 		s_setTex((uint64_t)curKey);
 		return uploaded > 0 ? 1 : 0;
+	}
+
+	static std::set<uint64_t> s_uploadedTex;
+
+	static bool XrUploadQImage(const QImage& img, uint64_t key)
+	{
+		if (!s_texUp || img.isNull())
+			return false;
+		const int w = img.width(), h = img.height();
+		QByteArray rgba((qint64)w * h * 4, 0);
+		for (int y = 0; y < h; y++)
+		{
+			const uchar* src = img.constScanLine(y);
+			uchar* dst = (uchar*)rgba.data() + (qint64)y * w * 4;
+			memcpy(dst, src, w * 4);
+		}
+		s_texUp(key, w, h, (const uint8_t*)rgba.constData());
+		return true;
+	}
+	// ==== S4: per-shape / per-item texture registry ====
+	// Resolves a sprite to its texture and registers it under a GML-side
+	// key (a shape instance id for BODYPART shapes, a tl id otherwise).
+	// Paged sprites bind their whole page (vbuffer UVs are page-relative);
+	// standalone sprites (model skins, useTexturePage off) bind their own
+	// texture (vbuffer UVs are 0-1 sprite-relative, matching MI's raw
+	// vTexCoord shader sampling). Reads the sprite's frame pageLoc directly,
+	// bypassing TexturePageLocation::Find (its idMap can go stale).
+	RealType lib_xr_bridge_reg_shape(RealType shapeId, RealType spriteId)
+	{
+		if (!s_texUp || !s_regTex)
+			return 0;
+		const IntType sid = (IntType)spriteId;
+		if (sid <= 0)
+			return 0;
+		Sprite* spr = FindSprite(sid);
+		if (!spr || spr->frames.isEmpty())
+			return 0;
+		Sprite::Frame* fr = spr->frames[0];
+		uint64_t key = 0;
+		if (fr->pageLoc && fr->pageLoc->page)
+		{
+			key = (uint64_t)(size_t)fr->pageLoc->page;
+			if (!s_uploadedTex.count(key))
+			{
+				s_uploadedTex.insert(key);
+				XrUploadQImage(fr->pageLoc->page->image, key);
+			}
+		}
+		else if (!fr->image.isNull())
+		{
+			key = (uint64_t)(IntType)sid;
+			if (!s_uploadedTex.count(key))
+			{
+				s_uploadedTex.insert(key);
+				XrUploadQImage(fr->image, key);
+			}
+			XrDiag("reg_shape: standalone sprite " + std::to_string(sid) +
+				" " + std::to_string(fr->image.width()) + "x" +
+				std::to_string(fr->image.height()));
+		}
+		if (!key)
+			return 0;
+		s_regTex((uint64_t)(IntType)shapeId, key);
+		return 1;
 	}
 	// S4: per-frame texture lookup by tl id (DLL-side registry).
 	RealType lib_xr_bridge_set_tex_for(RealType tlId)
