@@ -35,36 +35,13 @@ function xr_bridge_frame()
 		xr_bridge_ready = 1
 		log("XR bridge init ok", string(project_video_width) + "x" + string(project_video_height))
 		external_call(lib_xr_bridge_auto_tex)
-
-		// ==== S4: per-shape / per-item texture registry ====
-		// BODYPART: per-shape skins from model_part_shape_tex[s] (the same
-		// array the native path uses in render_world_model_part), keyed by
-		// shape instance id - exactly the keys of model_shape_vbuffer_map.
-		// Everything else: the block sheet (mc_res.block_sheet_texture),
-		// keyed by tl id. Keys are looked up per frame by set_tex_for.
-		var regSheet = mc_res.block_sheet_texture
-		for (var ri = 0; ri < ds_list_size(render_list); ri++)
-		{
-			var rtl = render_list[|ri]
-			if (rtl = timeline_camera)
-				continue
-			if (rtl.type = e_tl_type.BODYPART)
-			{
-				if (rtl.model_part != null && ds_exists(rtl.model_part.shape_list, ds_type_list)
-					&& rtl.model_part_shape_tex != null && !is_undefined(rtl.model_part_shape_tex))
-				{
-					for (var rs = 0; rs < ds_list_size(rtl.model_part.shape_list); rs++)
-					{
-						var rspr = rtl.model_part_shape_tex[rs]
-						if (rspr > 0 && sprite_exists(rspr))
-							external_call(lib_xr_bridge_reg_shape, rtl.model_part.shape_list[|rs].id, rspr)
-					}
-				}
-			}
-			else if (regSheet > 0 && sprite_exists(regSheet))
-				external_call(lib_xr_bridge_reg_shape, rtl.id, regSheet)
-		}
 	}
+
+	// ==== S4b: per-frame texture registration (native-equivalent) ====
+	// Every tl re-resolves its texture each frame, exactly like the native
+	// render pass does: late-visible tls, skin changes and per-type texture
+	// sources all stay correct. Registration is dedup'd DLL-side.
+	xr_bridge_register_textures()
 
 	// Camera
 	if (timeline_camera != null)
@@ -193,6 +170,26 @@ function xr_bridge_frame()
 						external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 0)
 					}
 				}
+				// S4b: per-texture-name faces (native render_world_block_map).
+				// Registration used the same ds_map iteration order, so the
+				// slot index here matches the registered synth key.
+				if (tl.temp.model.model_block_map != null
+					&& ds_exists(tl.temp.model.model_block_map, ds_type_map))
+				{
+					var mi = 0
+					var mk = ds_map_find_first(tl.temp.model.model_block_map)
+					while (!is_undefined(mk) && mi < 12)
+					{
+						var mvb = tl.temp.model.model_block_map[?mk]
+						if (mvb != null && !vbuffer_is_empty(mvb))
+						{
+							external_call(lib_xr_bridge_set_tex_for, -(tl.id * 16 + 3 + mi))
+							external_call(lib_xr_bridge_draw_vbuffer, mvb, -1, 0)
+						}
+						mi++
+						mk = ds_map_find_next(tl.temp.model.model_block_map)
+					}
+				}
 				break
 			}
 
@@ -208,10 +205,24 @@ function xr_bridge_frame()
 
 			case e_tl_type.TEXT:
 			{
+				// S4b: text_vbuffer/text_texture are [fill, outline] ARRAYS
+				// (tl_event_create); the old single-buffer call failed the
+				// buffer lookup and never drew. Native order: fill first,
+				// then the outline layer (render_world_text).
 				external_call(lib_xr_bridge_set_matrix,
 					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
-				external_call(lib_xr_bridge_draw_vbuffer, tl.text_vbuffer, -1, 0)
+				if (tl.text_vbuffer[0] != null && !vbuffer_is_empty(tl.text_vbuffer[0]))
+				{
+					external_call(lib_xr_bridge_set_tex_for, -(tl.id * 16 + 1))
+					external_call(lib_xr_bridge_draw_vbuffer, tl.text_vbuffer[0], -1, 0)
+				}
+				if (tl.value[e_value.TEXT_OUTLINE] && tl.text_vbuffer[1] != null
+					&& !vbuffer_is_empty(tl.text_vbuffer[1]))
+				{
+					external_call(lib_xr_bridge_set_tex_for, -(tl.id * 16 + 2))
+					external_call(lib_xr_bridge_draw_vbuffer, tl.text_vbuffer[1], -1, 0)
+				}
 				break
 			}
 
@@ -258,4 +269,123 @@ function xr_bridge_shape_matrix_arr(tl, shapeId)
 		}
 	}
 	return ident
+}
+
+// ==== S4b: per-frame per-type texture registration ====
+// Resolves each tl's texture exactly like the native render pass
+// (render_world_tl) does, and registers it into the DLL's per-item map:
+//   BODYPART        -> per-shape skins (model_part_shape_tex[s])
+//   BLOCK/SCENERY   -> res.block_sheet_texture
+//   ITEM            -> item_sheet_texture, fallback .texture
+//   TEXT            -> text_texture[0] fill + [1] outline (synth keys)
+//   MODEL           -> res.block_sheet_texture + model_block_map entries
+//   PATH            -> spr_shape / own texture
+//   shapes (default)-> temp_get_shape_tex(temp_get_shape_texobj(...))
+// Paged sprites register page + uvRect (loader-side); standalone sprites
+// their own texture. Synth keys: -(tl.id * 16 + slot), slot 1..14.
+function xr_bridge_register_textures()
+{
+	for (var ri = 0; ri < ds_list_size(render_list); ri++)
+	{
+		var rtl = render_list[|ri]
+		if (rtl = timeline_camera)
+			continue
+		var rt = rtl.type
+
+		if (rt = e_tl_type.BODYPART)
+		{
+			if (rtl.model_part != null && ds_exists(rtl.model_part.shape_list, ds_type_list)
+				&& rtl.model_part_shape_tex != null && !is_undefined(rtl.model_part_shape_tex))
+			{
+				for (var rs = 0; rs < ds_list_size(rtl.model_part.shape_list); rs++)
+				{
+					var rspr = rtl.model_part_shape_tex[rs]
+					if (rspr > 0 && sprite_exists(rspr))
+						external_call(lib_xr_bridge_reg_shape, rtl.model_part.shape_list[|rs].id, rspr)
+				}
+			}
+		}
+		else if (rt = e_tl_type.BLOCK || rt = e_tl_type.SCENERY)
+		{
+			var bres = rtl.render_res_diffuse
+			if (bres = null || !res_is_ready(bres))
+				bres = mc_res
+			var bspr = bres.block_sheet_texture
+			if (bspr > 0 && sprite_exists(bspr))
+				external_call(lib_xr_bridge_reg_shape, rtl.id, bspr)
+		}
+		else if (rt = e_tl_type.ITEM)
+		{
+			var ires = rtl.item_res
+			if (ires = null || !res_is_ready(ires))
+				ires = mc_res
+			var ispr = (ires.item_sheet_texture != null ? ires.item_sheet_texture : ires.texture)
+			if (ispr > 0 && sprite_exists(ispr))
+				external_call(lib_xr_bridge_reg_shape, rtl.id, ispr)
+		}
+		else if (rt = e_tl_type.TEXT)
+		{
+			for (var ti = 0; ti < 2; ti++)
+			{
+				var tspr = rtl.text_texture[ti]
+				if (tspr > 0 && sprite_exists(tspr))
+					external_call(lib_xr_bridge_reg_shape, -(rtl.id * 16 + 1 + ti), tspr)
+			}
+		}
+		else if (rt = e_tl_type.MODEL)
+		{
+			if (rtl.temp != null && rtl.temp.model != null)
+			{
+				var mres = rtl.value_inherit[e_value.TEXTURE_OBJ]
+				if (mres = null)
+					mres = rtl.temp.model_tex
+				if (mres = null || mres.block_sheet_texture = null)
+					mres = mc_res
+				var mspr = mres.block_sheet_texture
+				if (mspr > 0 && sprite_exists(mspr))
+					external_call(lib_xr_bridge_reg_shape, rtl.id, mspr)
+				if (rtl.temp.model.model_block_map != null
+					&& ds_exists(rtl.temp.model.model_block_map, ds_type_map))
+				{
+					var mi = 0
+					var mk = ds_map_find_first(rtl.temp.model.model_block_map)
+					while (!is_undefined(mk) && mi < 12)
+					{
+						var mtex = -1
+						with (mres)
+							mtex = res_get_model_texture(mk)
+						if (mtex > 0 && sprite_exists(mtex))
+							external_call(lib_xr_bridge_reg_shape, -(rtl.id * 16 + 3 + mi), mtex)
+						mi++
+						mk = ds_map_find_next(rtl.temp.model.model_block_map)
+					}
+				}
+			}
+		}
+		else if (rt = e_tl_type.PATH)
+		{
+			var ptex = spr_shape
+			if (rtl.value_inherit[e_value.TEXTURE_OBJ] != null)
+				ptex = rtl.value_inherit[e_value.TEXTURE_OBJ].texture
+			if (ptex > 0 && sprite_exists(ptex))
+				external_call(lib_xr_bridge_reg_shape, rtl.id, ptex)
+		}
+		else
+		{
+			// Shapes (cube/cylinder/...): native default case. Capture the
+			// texture object BEFORE entering with(temp) - inside it, `other`
+			// would be the calling instance, not the tl. The fallback vars
+			// (shape_texture/shape_tex) then resolve against temp exactly
+			// like the native with(temp) does.
+			if (rtl.temp != null)
+			{
+				var stexobj = rtl.value_inherit[e_value.TEXTURE_OBJ]
+				var stex = -1
+				with (rtl.temp)
+					stex = temp_get_shape_tex(temp_get_shape_texobj(stexobj))
+				if (stex > 0 && sprite_exists(stex))
+					external_call(lib_xr_bridge_reg_shape, rtl.id, stex)
+			}
+		}
+	}
 }

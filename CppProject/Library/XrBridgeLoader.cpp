@@ -52,6 +52,7 @@ namespace CppProject
 	typedef void (*XrSetTexFn)(uint64_t);
 	typedef void (*XrSetUvRectFn)(double, double, double, double);
 	typedef void (*XrRegTexFn)(uint64_t, uint64_t);
+	typedef void (*XrRegTex2Fn)(uint64_t, uint64_t, double, double, double, double);
 	typedef void (*XrSetTexForFn)(uint64_t);
 
 	static HMODULE s_bridge = nullptr;
@@ -67,6 +68,7 @@ namespace CppProject
 	static XrSetTexFn s_setTex = nullptr;
 	static XrSetUvRectFn s_setUv = nullptr;
 	static XrRegTexFn s_regTex = nullptr;
+	static XrRegTex2Fn s_regTex2 = nullptr; // optional: + sprite uvRect
 	static XrSetTexForFn s_setTexFor = nullptr;
 	static int s_frameIndex = 0;
 
@@ -97,6 +99,7 @@ namespace CppProject
 		s_setTex = (XrSetTexFn)GetProcAddress(s_bridge, "xr_bridge_set_texture");
 		s_setUv = (XrSetUvRectFn)GetProcAddress(s_bridge, "xr_bridge_set_uvrect");
 		s_regTex = (XrRegTexFn)GetProcAddress(s_bridge, "xr_bridge_register_item_tex");
+		s_regTex2 = (XrRegTex2Fn)GetProcAddress(s_bridge, "xr_bridge_register_item_tex2");
 		s_setTexFor = (XrSetTexForFn)GetProcAddress(s_bridge, "xr_bridge_set_tex_for");
 		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
@@ -327,13 +330,15 @@ namespace CppProject
 		return uploaded > 0 ? 1 : 0;
 	}
 
-	// ==== S4: per-shape / per-item texture registry ====
+	// ==== S4b: per-shape / per-item texture registry ====
 	// Resolves a sprite to its texture and registers it under a GML-side
 	// key (a shape instance id for BODYPART shapes, a tl id otherwise).
-	// Paged sprites bind their whole page (vbuffer UVs are page-relative);
-	// standalone sprites (model skins, useTexturePage off) bind their own
-	// texture (vbuffer UVs are 0-1 sprite-relative, matching MI's raw
-	// vTexCoord shader sampling). Reads the sprite's frame pageLoc directly,
+	// Paged sprites bind their page + the sprite's uvRect (vbuffer UVs are
+	// sprite-relative 0-1 and the DLL bakes the rect per draw, replicating
+	// the native shader's _uVvRect transform); standalone sprites (model
+	// skins, useTexturePage off) bind their own texture with an identity
+	// rect (UVs are 0-1 sprite-relative, matching MI's raw vTexCoord
+	// shader sampling). Reads the sprite's frame pageLoc directly,
 	// bypassing TexturePageLocation::Find (its idMap can go stale).
 	RealType lib_xr_bridge_reg_shape(RealType shapeId, RealType spriteId)
 	{
@@ -347,6 +352,7 @@ namespace CppProject
 			return 0;
 		Sprite::Frame* fr = spr->frames[0];
 		uint64_t key = 0;
+		double ux = 0, uy = 0, uw = 1, uh = 1;
 		if (fr->pageLoc && fr->pageLoc->page)
 		{
 			key = (uint64_t)(size_t)fr->pageLoc->page;
@@ -355,6 +361,12 @@ namespace CppProject
 				s_uploadedTex.insert(key);
 				XrUploadQImage(fr->pageLoc->page->image, key);
 			}
+			// S4b: vbuffer UVs are sprite-relative 0-1; pass the sprite's
+			// page uvRect so the DLL can map them onto the atlas (the old
+			// "page-relative UVs" assumption was wrong).
+			const UvRect& uv = fr->pageLoc->uvRect;
+			ux = (double)uv.x; uy = (double)uv.y;
+			uw = (double)uv.w; uh = (double)uv.h;
 		}
 		else if (!fr->image.isNull())
 		{
@@ -370,7 +382,10 @@ namespace CppProject
 		}
 		if (!key)
 			return 0;
-		s_regTex((uint64_t)(IntType)shapeId, key);
+		if (s_regTex2)
+			s_regTex2((uint64_t)(IntType)shapeId, key, ux, uy, uw, uh);
+		else
+			s_regTex((uint64_t)(IntType)shapeId, key);
 		return 1;
 	}
 	// S4: per-frame texture lookup by tl id (DLL-side registry).
