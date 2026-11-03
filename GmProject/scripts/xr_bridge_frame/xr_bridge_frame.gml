@@ -187,7 +187,7 @@ function xr_bridge_frame()
 							external_call(lib_xr_bridge_draw_vbuffer, mvb, -1, 0)
 						}
 						mi++
-						mk = ds_map_find_next(tl.temp.model.model_block_map)
+						mk = ds_map_find_next(tl.temp.model.model_block_map, mk)
 					}
 				}
 				break
@@ -354,10 +354,10 @@ function xr_bridge_register_textures()
 						var mtex = -1
 						with (mres)
 							mtex = res_get_model_texture(mk)
-						if (mtex > 0 && sprite_exists(mtex))
-							external_call(lib_xr_bridge_reg_shape, -(rtl.id * 16 + 3 + mi), mtex)
-						mi++
-						mk = ds_map_find_next(rtl.temp.model.model_block_map)
+					if (mtex > 0 && sprite_exists(mtex))
+						external_call(lib_xr_bridge_reg_shape, -(rtl.id * 16 + 3 + mi), mtex)
+					mi++
+					mk = ds_map_find_next(rtl.temp.model.model_block_map, mk)
 					}
 				}
 			}
