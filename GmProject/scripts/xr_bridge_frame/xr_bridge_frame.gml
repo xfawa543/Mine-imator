@@ -302,6 +302,24 @@ function xr_bridge_register_textures()
 					var rspr = rtl.model_part_shape_tex[rs]
 					if (rspr > 0 && sprite_exists(rspr))
 						external_call(lib_xr_bridge_reg_shape, rtl.model_part.shape_list[|rs].id, rspr)
+					// S4c DIAG: per-shape vbuffer state at the diag frame
+					// (read-only; recorded DLL-side only at frame 900).
+					var dshid = rtl.model_part.shape_list[|rs].id
+					var dvb = -1
+					var dst = 0
+					if (ds_exists(rtl.model_shape_vbuffer_map, ds_type_map))
+					{
+						var dmv = rtl.model_shape_vbuffer_map[?string(dshid)]
+						if (!is_undefined(dmv))
+						{
+							if (dmv = null)
+								dst = 1
+							else if (vbuffer_is_empty(dmv))
+								dst = 2
+							else { dst = 3; dvb = dmv }
+						}
+					}
+					external_call(lib_xr_bridge_diag_shape, rtl.id, rs, dvb, dst)
 				}
 			}
 		}

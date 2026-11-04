@@ -388,12 +388,35 @@ namespace CppProject
 			s_regTex((uint64_t)(IntType)shapeId, key);
 		return 1;
 	}
-	// S4: per-frame texture lookup by tl id (DLL-side registry).
-	RealType lib_xr_bridge_set_tex_for(RealType tlId)
+	// S4c DIAG: per-shape vbuffer state, recorded only at diag frame 900.
+	// Called from xr_bridge_frame's registration loop for every BODYPART
+	// shape every frame; state: 0=not in vbuffer map, 1=null, 2=empty, 3=ok.
+	// Read-only: resolves the vbuffer for vertex/index counts, changes nothing.
+	RealType lib_xr_bridge_diag_shape(RealType tlId, RealType shapeIdx, RealType vbId, RealType state)
 	{
-		if (!s_setTexFor)
+		if (s_frameIndex != 900)
 			return 0;
-		s_setTexFor((uint64_t)(IntType)tlId);
+		int verts = -1, idxs = -1, meshes = -1;
+		IntType vbi = (IntType)vbId;
+		if (vbi > 0)
+		{
+			VertexBuffer* vb = FindVertexBuffer(vbi);
+			if (vb)
+			{
+				meshes = (int)vb->meshes.size();
+				verts = 0; idxs = 0;
+				for (const Mesh<>* m : vb->meshes)
+					if (m) { verts += m->numVertices; idxs += m->numIndices; }
+			}
+			else meshes = -2; // id present but lookup failed
+		}
+		XrDiag("shape tl=" + std::to_string((IntType)tlId) +
+			" idx=" + std::to_string((IntType)shapeIdx) +
+			" vb=" + std::to_string(vbi) +
+			" state=" + std::to_string((IntType)state) +
+			" meshes=" + std::to_string(meshes) +
+			" verts=" + std::to_string(verts) +
+			" indices=" + std::to_string(idxs));
 		return 1;
 	}
 }
