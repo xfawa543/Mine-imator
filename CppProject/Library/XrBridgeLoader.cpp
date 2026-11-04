@@ -388,6 +388,14 @@ namespace CppProject
 			s_regTex((uint64_t)(IntType)shapeId, key);
 		return 1;
 	}
+	// S4: per-frame texture lookup by tl id (DLL-side registry).
+	RealType lib_xr_bridge_set_tex_for(RealType tlId)
+	{
+		if (!s_setTexFor)
+			return 0;
+		s_setTexFor((uint64_t)(IntType)tlId);
+		return 1;
+	}
 	// S4c DIAG: per-shape vbuffer state, recorded only at diag frame 900.
 	// Called from xr_bridge_frame's registration loop for every BODYPART
 	// shape every frame; state: 0=not in vbuffer map, 1=null, 2=empty, 3=ok.
