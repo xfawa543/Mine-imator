@@ -70,9 +70,11 @@ function xr_bridge_frame()
 		{
 			case e_tl_type.BODYPART:
 			{
-				external_call(lib_xr_bridge_set_matrix,
-					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
-					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
+				// S4i: native per-shape chain (render_world_model_part L287-321):
+				//   rendermatrix = shape.matrix × world
+				//   + shape.item_bounce (post Z, ease quad)
+				//   + shape.face_camera (matrix_remove_rotation → billboard toward camera)
+				// then draw with the FULL composed matrix (isShape=0).
 				if (ds_exists(tl.model_shape_vbuffer_map, ds_type_map))
 				{
 					var key = ds_map_find_first(tl.model_shape_vbuffer_map)
@@ -81,12 +83,39 @@ function xr_bridge_frame()
 						var vb = tl.model_shape_vbuffer_map[?key]
 						if (vb != null && !vbuffer_is_empty(vb))
 						{
-							var sm = xr_bridge_shape_matrix_arr(tl, string_get_real(key))
-							external_call(lib_xr_bridge_set_shape_matrix,
-								sm[0], sm[1], sm[2], sm[3], sm[4], sm[5], sm[6], sm[7],
-								sm[8], sm[9], sm[10], sm[11], sm[12], sm[13], sm[14], sm[15])
-							external_call(lib_xr_bridge_set_tex_for, string_get_real(key))
-							external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 1)
+							var sid = string_get_real(key)
+							var sm = xr_bridge_shape_matrix_arr(tl, sid)
+							var rm = matrix_multiply(sm, m)
+							var sflags = xr_bridge_shape_flags(tl, sid)
+							if (sflags[0] = 1 && sflags[1])
+							{
+								var bd = 60 * 3
+								var bt = (app.background_time mod bd) * 2
+								var offz = 0
+								if (bt < bd)
+									offz = ease("easeinoutquad", bt / bd) * 2 - 1
+								else
+									offz = 1 - ease("easeinoutquad", (bt - bd) / bd) * 2
+								rm = matrix_multiply(rm, matrix_build(0, 0, offz, 0, 0, 0, 1, 1, 1))
+							}
+							if (sflags[0] = 1 && sflags[2])
+							{
+								// inline matrix_remove_rotation (strip rotation, keep scale)
+								var xs = sqrt(rm[0] * rm[0] + rm[1] * rm[1] + rm[2] * rm[2])
+								var ys = sqrt(rm[4] * rm[4] + rm[5] * rm[5] + rm[6] * rm[6])
+								var zs = sqrt(rm[8] * rm[8] + rm[9] * rm[9] + rm[10] * rm[10])
+								rm[0] = xs; rm[1] = 0; rm[2] = 0
+								rm[4] = 0; rm[5] = ys; rm[6] = 0
+								rm[8] = 0; rm[9] = 0; rm[10] = zs
+								var rotx = -point_zdirection(rm[12], rm[13], rm[14], proj_from[X], proj_from[Y], proj_from[Z])
+								var rotz = 90 + point_direction(rm[12], rm[13], proj_from[X], proj_from[Y])
+								rm = matrix_multiply(matrix_build(0, 0, 0, rotx, 0, rotz, 1, 1, 1), rm)
+							}
+							external_call(lib_xr_bridge_set_matrix,
+								rm[0], rm[1], rm[2], rm[3], rm[4], rm[5], rm[6], rm[7],
+								rm[8], rm[9], rm[10], rm[11], rm[12], rm[13], rm[14], rm[15])
+							external_call(lib_xr_bridge_set_tex_for, sid)
+							external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 0)
 						}
 						key = ds_map_find_next(tl.model_shape_vbuffer_map, key)
 					}
@@ -329,6 +358,30 @@ function xr_bridge_shape_matrix_arr(tl, shapeId)
 		}
 	}
 	return ident
+}
+
+// S4i DIAG helper: per-shape flags for the native transform chain.
+// Returns [found, item_bounce, face_camera]; found=0 when the shape id is absent.
+function xr_bridge_shape_flags(tl, shapeId)
+{
+	var res = [0, 0, 0]
+	if (tl.model_part = null)
+		return res
+	if (ds_exists(tl.model_part.shape_list, ds_type_list))
+	{
+		for (var s = 0; s < ds_list_size(tl.model_part.shape_list); s++)
+		{
+			var shape = tl.model_part.shape_list[|s]
+			if (shape.id = shapeId)
+			{
+				res[0] = 1
+				res[1] = shape.item_bounce
+				res[2] = shape.face_camera
+				return res
+			}
+		}
+	}
+	return res
 }
 
 // ==== S4b: per-frame per-type texture registration ====
