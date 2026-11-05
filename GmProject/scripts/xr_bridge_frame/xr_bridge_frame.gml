@@ -58,6 +58,14 @@ function xr_bridge_frame()
 		var tl = render_list[|i]
 		if (tl = timeline_camera)
 			continue
+		// S4k: native visibility culling (render_world_tl L22 + L71).
+		// value_inherit is refreshed per frame by tl_update_matrix and already
+		// includes the parent-chain inheritance, matching the native data the
+		// render path consumes.
+		if (!tl.value_inherit[e_value.VISIBLE])
+			continue
+		if ((tl.value_inherit[e_value.ALPHA] * 1000) = 0)
+			continue
 		var t = tl.type
 		var m = tl.matrix_render
 
