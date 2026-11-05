@@ -87,6 +87,18 @@ function xr_bridge_frame()
 							var sm = xr_bridge_shape_matrix_arr(tl, sid)
 							var rm = matrix_multiply(m, sm) // ORDER EXPERIMENT: world applied first in GM call → shape-local placement
 							var sflags = xr_bridge_shape_flags(tl, sid)
+							if (rs < 3)
+							{
+								// S4j DIAG: matrix values at diag frame 900
+								external_call(lib_xr_bridge_diag_m, 0, tl.id, 0, 0, 0, 0, 0, 0, 0)
+								external_call(lib_xr_bridge_diag_m, 1, m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7])
+								external_call(lib_xr_bridge_diag_m, 2, m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
+								external_call(lib_xr_bridge_diag_m, 3, sm[0], sm[1], sm[2], sm[3], sm[4], sm[5], sm[6], sm[7])
+								external_call(lib_xr_bridge_diag_m, 4, sm[8], sm[9], sm[10], sm[11], sm[12], sm[13], sm[14], sm[15])
+								external_call(lib_xr_bridge_diag_m, 5, rm[0], rm[1], rm[2], rm[3], rm[4], rm[5], rm[6], rm[7])
+								external_call(lib_xr_bridge_diag_m, 6, rm[8], rm[9], rm[10], rm[11], rm[12], rm[13], rm[14], rm[15])
+								external_call(lib_xr_bridge_diag_m, 7, sflags[0], sflags[1], sflags[2], sid, 0, 0, 0, 0)
+							}
 							if (sflags[0] = 1 && sflags[1])
 							{
 								var bd = 60 * 3
