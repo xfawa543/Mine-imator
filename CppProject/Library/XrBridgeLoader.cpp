@@ -396,6 +396,25 @@ namespace CppProject
 		s_setTexFor((uint64_t)(IntType)tlId);
 		return 1;
 	}
+
+	// S4j DIAG: matrix value dump, recorded only at diag frame 900.
+	// tag: 0=tl identity, 1/2=tl.matrix_render halves, 3/4=shape.matrix halves,
+	//      5/6=composed rendermatrix halves, 7=shape flags.
+	// Read-only: writes one line to the loader diag log.
+	RealType lib_xr_bridge_diag_m(RealType tag, RealType idx,
+		RealType v0, RealType v1, RealType v2, RealType v3,
+		RealType v4, RealType v5, RealType v6, RealType v7)
+	{
+		if (s_frameIndex != 900)
+			return 0;
+		XrDiag("mdiag tag=" + std::to_string((IntType)tag) +
+			" idx=" + std::to_string((IntType)idx) +
+			" [" + std::to_string((double)v0) + ", " + std::to_string((double)v1) +
+			", " + std::to_string((double)v2) + ", " + std::to_string((double)v3) +
+			", " + std::to_string((double)v4) + ", " + std::to_string((double)v5) +
+			", " + std::to_string((double)v6) + ", " + std::to_string((double)v7) + "]");
+		return 1;
+	}
 	// S4c DIAG: per-shape vbuffer state, recorded only at diag frame 900.
 	// Called from xr_bridge_frame's registration loop for every BODYPART
 	// shape every frame; state: 0=not in vbuffer map, 1=null, 2=empty, 3=ok.
