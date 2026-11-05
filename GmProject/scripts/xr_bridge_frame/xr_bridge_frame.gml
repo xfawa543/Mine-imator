@@ -195,23 +195,75 @@ function xr_bridge_frame()
 
 			case e_tl_type.ITEM:
 			{
+				// S4h: replicate render_world_item transforms in native order:
+				// 1) facecamera pre (pivot rotation at item axis point (8, .5*is3d))
+				// 2) rotate/spin pre (same pivot, continuous Z rotation)
+				// 3) bounce POST (world-space Z offset, MI Z-up = vertical)
 				var vb = (tl.item_vbuffer != null ? tl.item_vbuffer : tl.temp.item_vbuffer)
+				var im = m
+				var is3d = tl.temp.item_3d
+				if (tl.temp.item_face_camera)
+				{
+					var frotz = 90 + point_direction(im[12], im[13], proj_from[X], proj_from[Y])
+					var fm = matrix_multiply(matrix_build(-8, -0.5 * is3d, 0, 0, 0, 0, 1, 1, 1),
+						matrix_build(8, 0.5 * is3d, 0, 0, 0, frotz, 1, 1, 1))
+					im = matrix_multiply(fm, im)
+				}
+				if (tl.temp.item_spin)
+				{
+					// native: d=60*6; t=(background_time mod d)*360; offz=t/360
+					var sd = 60 * 6
+					var soffz = (app.background_time mod sd)
+					var sm2 = matrix_multiply(matrix_build(-8, -0.5 * is3d, 0, 0, 0, 0, 1, 1, 1),
+						matrix_build(8, 0.5 * is3d, 0, 0, 0, soffz, 1, 1, 1))
+					im = matrix_multiply(sm2, im)
+				}
+				if (tl.temp.item_bounce)
+				{
+					// native: d=60*3; t=(background_time mod d)*2; ease quad up/down;
+					// matrix_world_multiply_POST (world-space Z offset)
+					var bd = 60 * 3
+					var bt = (app.background_time mod bd) * 2
+					var offz = 0
+					if (bt < bd)
+						offz = ease("easeinoutquad", bt / bd) * 2 - 1
+					else
+						offz = 1 - ease("easeinoutquad", (bt - bd) / bd) * 2
+					im = matrix_multiply(im, matrix_build(0, 0, offz, 0, 0, 0, 1, 1, 1))
+				}
 				external_call(lib_xr_bridge_set_matrix,
-					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
-					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
+					im[0], im[1], im[2], im[3], im[4], im[5], im[6], im[7],
+					im[8], im[9], im[10], im[11], im[12], im[13], im[14], im[15])
 				external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 0)
 				break
 			}
 
 			case e_tl_type.TEXT:
 			{
-				// S4b: text_vbuffer/text_texture are [fill, outline] ARRAYS
-				// (tl_event_create); the old single-buffer call failed the
-				// buffer lookup and never drew. Native order: fill first,
-				// then the outline layer (render_world_text).
+				// S4h: replicate render_world_text pre-transforms.
+				// Native order: facecamera pre-rotate (aim the text plane at the
+				// camera) THEN the non-minecraft font scale (8/48 on x/z), both
+				// matrix_world_multiply_pre (= world := pre * world).
+				var tm = m
+				if (tl.temp != null && tl.temp.text_face_camera)
+				{
+					// rotx/rotz from the text plane position (mat[12..14]) toward
+					// proj_from (= cam_from, render_world_start.gml:14)
+					var trotx = -point_zdirection(tm[12], tm[13], tm[14], proj_from[X], proj_from[Y], proj_from[Z])
+					var trotz = 90 + point_direction(tm[12], tm[13], proj_from[X], proj_from[Y])
+					tm = matrix_multiply(matrix_build(0, 0, 0, trotx, 0, trotz, 1, 1, 1), tm)
+				}
+				if (tl.text_res != null && !tl.text_res.font_minecraft)
+				{
+					var tsca = 8 / 48
+					tm = matrix_multiply(matrix_build(0, 0, 0, 0, 0, 0, tsca, 1, tsca), tm)
+				}
 				external_call(lib_xr_bridge_set_matrix,
-					m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
-					m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
+					tm[0], tm[1], tm[2], tm[3], tm[4], tm[5], tm[6], tm[7],
+					tm[8], tm[9], tm[10], tm[11], tm[12], tm[13], tm[14], tm[15])
+				// text_vbuffer/text_texture are [fill, outline] ARRAYS
+				// (tl_event_create); native order: fill first, then the outline
+				// layer (render_world_text).
 				if (tl.text_vbuffer[0] != null && !vbuffer_is_empty(tl.text_vbuffer[0]))
 				{
 					external_call(lib_xr_bridge_set_tex_for, -(tl.id * 16 + 1))
@@ -239,6 +291,14 @@ function xr_bridge_frame()
 			{
 				if (tl.temp != null && !is_undefined(tl.temp.shape_vbuffer))
 				{
+					// S4h: render_world_shape applies face_camera ONLY for
+					// SURFACE shapes (cubes/cylinders ignore it).
+					if (tl.temp.type = e_temp_type.SURFACE && tl.temp.shape_face_camera)
+					{
+						var srotx = -point_zdirection(m[12], m[13], m[14], proj_from[X], proj_from[Y], proj_from[Z])
+						var srotz = 90 + point_direction(m[12], m[13], proj_from[X], proj_from[Y])
+						m = matrix_multiply(matrix_build(0, 0, 0, srotx, 0, srotz, 1, 1, 1), m)
+					}
 					external_call(lib_xr_bridge_set_matrix,
 						m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
 						m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15])
