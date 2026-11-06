@@ -93,7 +93,7 @@ function xr_bridge_frame()
 						{
 							var sid = string_get_real(key)
 							var sm = xr_bridge_shape_matrix_arr(tl, sid)
-							var rm = matrix_multiply(m, sm) // ORDER EXPERIMENT: world applied first in GM call → shape-local placement
+							var rm = matrix_multiply(sm, m) // native order (render_world_model_part L290): shape-local placement FIRST, then world
 							var sflags = xr_bridge_shape_flags(tl, sid)
 							if (rs < 3)
 							{
