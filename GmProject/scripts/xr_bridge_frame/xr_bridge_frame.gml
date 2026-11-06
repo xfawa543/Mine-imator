@@ -66,6 +66,12 @@ function xr_bridge_frame()
 			continue
 		if ((tl.value_inherit[e_value.ALPHA] * 1000) = 0)
 			continue
+		// S4q: native tl_get_visible() HQ/LQ hide flags (the export-only
+		// hiding layer). Transition/squash tls carry hq_hiding/lq_hiding and
+		// are invisible in native exports - without this they render as
+		// stretched ribbons / paper-thin sheets / black lines.
+		if ((app.exportmovie_high_quality && tl.hq_hiding) || (!app.exportmovie_high_quality && tl.lq_hiding))
+			continue
 		var t = tl.type
 		var m = tl.matrix_render
 
