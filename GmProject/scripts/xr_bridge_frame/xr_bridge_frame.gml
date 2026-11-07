@@ -53,6 +53,12 @@ function xr_bridge_frame()
 			to[X], to[Y], to[Z], cm[8], cm[9], cm[10])
 	}
 
+	// S4t: native background (render_low L18 draws render_world_background
+	// BEFORE the world pass): sky color clear + optional full-screen image.
+	external_call(lib_xr_bridge_set_bg, background_sky_color)
+	if (background_image_show && background_image != null && background_image_type = "image")
+		external_call(lib_xr_bridge_set_bg_image, background_image.texture)
+
 	for (var i = 0; i < ds_list_size(render_list); i++)
 	{
 		var tl = render_list[|i]
@@ -71,6 +77,12 @@ function xr_bridge_frame()
 		// are invisible in native exports - without this they render as
 		// stretched ribbons / paper-thin sheets / black lines.
 		if ((app.exportmovie_high_quality && tl.hq_hiding) || (!app.exportmovie_high_quality && tl.lq_hiding))
+			continue
+		// S4u: native tl_get_visible() L8 - the timeline eye toggle. The Feel
+		// template carries 46 hide=true tls (scratch objects with arbitrary
+		// transforms); native never renders them, the bridge did - they show
+		// up as the stretched ribbons / paper-thin sheets in exports.
+		if (tl.hide && !tl.render_hidden)
 			continue
 		var t = tl.type
 		var m = tl.matrix_render

@@ -54,6 +54,8 @@ namespace CppProject
 	typedef void (*XrRegTexFn)(uint64_t, uint64_t);
 	typedef void (*XrRegTex2Fn)(uint64_t, uint64_t, double, double, double, double);
 	typedef void (*XrSetTexForFn)(uint64_t);
+	typedef void (*XrSetBgFn)(double);
+	typedef void (*XrSetBgImageFn)(double, double, double, double, double);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -70,6 +72,8 @@ namespace CppProject
 	static XrRegTexFn s_regTex = nullptr;
 	static XrRegTex2Fn s_regTex2 = nullptr; // optional: + sprite uvRect
 	static XrSetTexForFn s_setTexFor = nullptr;
+	static XrSetBgFn s_setBg = nullptr;           // S4t: optional (older dlls)
+	static XrSetBgImageFn s_setBgImage = nullptr; // S4t: optional (older dlls)
 	static int s_frameIndex = 0;
 
 	static bool LoadBridge()
@@ -101,6 +105,9 @@ namespace CppProject
 		s_regTex = (XrRegTexFn)GetProcAddress(s_bridge, "xr_bridge_register_item_tex");
 		s_regTex2 = (XrRegTex2Fn)GetProcAddress(s_bridge, "xr_bridge_register_item_tex2");
 		s_setTexFor = (XrSetTexForFn)GetProcAddress(s_bridge, "xr_bridge_set_tex_for");
+		// S4t: optional exports - absent in older xr_bridge.dll builds.
+		s_setBg = (XrSetBgFn)GetProcAddress(s_bridge, "xr_bridge_set_bg");
+		s_setBgImage = (XrSetBgImageFn)GetProcAddress(s_bridge, "xr_bridge_set_bg_image");
 		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
 			s_bridge = nullptr;
@@ -328,6 +335,38 @@ namespace CppProject
 		XrDiag("auto_tex: curKey=" + std::to_string(curKey));
 		s_setTex((uint64_t)curKey);
 		return uploaded > 0 ? 1 : 0;
+	}
+
+	// ==== S4t: native background (render_world_background) ====
+	// Sky clear color, GML 0xBBGGRR. Optional export - no-op on old dlls.
+	RealType lib_xr_bridge_set_bg(RealType skyColor)
+	{
+		if (!s_setBg)
+			return 0;
+		s_setBg((double)skyColor);
+		return 1;
+	}
+
+	// Full-screen background image: resolves the GM texture id to its page,
+	// uploads it once, and hands the page key + uv rect to the dll. The page
+	// is drawn as the first pass of the frame (native render_low order).
+	RealType lib_xr_bridge_set_bg_image(RealType texId)
+	{
+		if (!s_setBgImage || !s_texUp)
+			return 0;
+		const IntType locId = (IntType)texId;
+		TexturePageLocation* loc = TexturePageLocation::Find(locId);
+		if (!loc || !loc->page || loc->page->image.isNull())
+			return 0;
+		const uint64_t key = (uint64_t)(size_t)loc->page;
+		if (!s_uploadedTex.count(key))
+		{
+			s_uploadedTex.insert(key);
+			XrUploadQImage(loc->page->image, key);
+		}
+		const UvRect& uv = loc->uvRect;
+		s_setBgImage((double)key, (double)uv.x, (double)uv.y, (double)uv.w, (double)uv.h);
+		return 1;
 	}
 
 	// ==== S4b: per-shape / per-item texture registry ====

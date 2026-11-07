@@ -40,6 +40,7 @@ function lib_startup()
 	globalvar lib_xr_bridge_reg_shape;
 globalvar lib_xr_bridge_diag_shape;
 globalvar lib_xr_bridge_diag_m;
+globalvar lib_xr_bridge_set_bg, lib_xr_bridge_set_bg_image;
 	
 	// Window library
 	log("External library", pathwindow)
@@ -84,6 +85,8 @@ globalvar lib_xr_bridge_diag_m;
 	lib_xr_bridge_reg_shape = external_define(pathfile, "xr_bridge_reg_shape", dll_cdecl, ty_real, 2, ty_real, ty_real)
 	lib_xr_bridge_diag_shape = external_define(pathfile, "xr_bridge_diag_shape", dll_cdecl, ty_real, 4, ty_real, ty_real, ty_real, ty_real)
 	lib_xr_bridge_diag_m = external_define(pathfile, "xr_bridge_diag_m", dll_cdecl, ty_real, 10, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_set_bg = external_define(pathfile, "xr_bridge_set_bg", dll_cdecl, ty_real, 1, ty_real)
+	lib_xr_bridge_set_bg_image = external_define(pathfile, "xr_bridge_set_bg_image", dll_cdecl, ty_real, 5, ty_real, ty_real, ty_real, ty_real, ty_real)
 	
 	// Movie library
 	log("External library", pathmovie)
