@@ -56,6 +56,7 @@ namespace CppProject
 	typedef void (*XrSetTexForFn)(uint64_t);
 	typedef void (*XrSetBgFn)(double);
 	typedef void (*XrSetBgImageFn)(double, double, double, double, double);
+	typedef void (*XrSetAlphaFn)(double);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -74,6 +75,7 @@ namespace CppProject
 	static XrSetTexForFn s_setTexFor = nullptr;
 	static XrSetBgFn s_setBg = nullptr;           // S4t: optional (older dlls)
 	static XrSetBgImageFn s_setBgImage = nullptr; // S4t: optional (older dlls)
+	static XrSetAlphaFn s_setDrawAlpha = nullptr; // S4v: optional (older dlls)
 	static int s_frameIndex = 0;
 
 	static bool LoadBridge()
@@ -108,6 +110,7 @@ namespace CppProject
 		// S4t: optional exports - absent in older xr_bridge.dll builds.
 		s_setBg = (XrSetBgFn)GetProcAddress(s_bridge, "xr_bridge_set_bg");
 		s_setBgImage = (XrSetBgImageFn)GetProcAddress(s_bridge, "xr_bridge_set_bg_image");
+		s_setDrawAlpha = (XrSetAlphaFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_alpha");
 		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
 			s_bridge = nullptr;
@@ -366,6 +369,16 @@ namespace CppProject
 		}
 		const UvRect& uv = loc->uvRect;
 		s_setBgImage((double)key, (double)uv.x, (double)uv.y, (double)uv.w, (double)uv.h);
+		return 1;
+	}
+
+	// S4v: per-tl alpha (native uBlendColor alpha) applied to the tl's draws.
+	// Optional export - no-op on old dlls.
+	RealType lib_xr_bridge_set_draw_alpha(RealType a)
+	{
+		if (!s_setDrawAlpha)
+			return 0;
+		s_setDrawAlpha((double)a);
 		return 1;
 	}
 

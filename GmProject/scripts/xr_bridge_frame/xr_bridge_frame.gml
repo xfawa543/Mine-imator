@@ -84,6 +84,10 @@ function xr_bridge_frame()
 		// up as the stretched ribbons / paper-thin sheets in exports.
 		if (tl.hide && !tl.render_hidden)
 			continue
+		// S4v: native per-tl alpha (render_set_uniform_color uBlendColor).
+		// Scaffold tls in the Feel template are flat + ALPHA=0.01; the bridge
+		// ignored alpha and drew them opaque - the stretched ribbons.
+		external_call(lib_xr_bridge_set_draw_alpha, clamp(tl.value_inherit[e_value.ALPHA], 0, 1))
 		var t = tl.type
 		var m = tl.matrix_render
 
