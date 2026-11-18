@@ -88,6 +88,10 @@ function xr_bridge_frame()
 		// Scaffold tls in the Feel template are flat + ALPHA=0.01; the bridge
 		// ignored alpha and drew them opaque - the stretched ribbons.
 		external_call(lib_xr_bridge_set_draw_alpha, clamp(tl.value_inherit[e_value.ALPHA], 0, 1))
+		// S29: native per-tl blend color (uBlendColor rgb). The 8-14s
+		// surfaces are dyed black/red via this; without it the bridge drew
+		// the raw texture colors.
+		external_call(lib_xr_bridge_set_draw_color, tl.value_inherit[e_value.COLOR])
 		var t = tl.type
 		var m = tl.matrix_render
 
@@ -117,6 +121,12 @@ function xr_bridge_frame()
 							var sm = xr_bridge_shape_matrix_arr(tl, sid)
 							var rm = matrix_multiply(sm, m) // native order (render_world_model_part L290): shape-local placement FIRST, then world
 							var sflags = xr_bridge_shape_flags(tl, sid)
+							// S29: per-shape tint/alpha (native L239-268: uBlendColor
+							// = tl blend x shape.color_blend, alpha likewise).
+							external_call(lib_xr_bridge_set_draw_color,
+								color_multiply(tl.value_inherit[e_value.COLOR], sflags[3]))
+							external_call(lib_xr_bridge_set_draw_alpha,
+								clamp(tl.value_inherit[e_value.ALPHA] * sflags[4], 0, 1))
 							if (rs < 3)
 							{
 								// S4j DIAG: matrix values at diag frame 900
@@ -403,10 +413,13 @@ function xr_bridge_shape_matrix_arr(tl, shapeId)
 }
 
 // S4i DIAG helper: per-shape flags for the native transform chain.
-// Returns [found, item_bounce, face_camera]; found=0 when the shape id is absent.
+// Returns [found, item_bounce, face_camera, color_blend, color_alpha];
+// found=0 when the shape id is absent. S29: also carries the per-shape
+// blend color/alpha (native render_world_model_part L239-240) so the
+// bridge can bake the same tint the uBlendColor uniform applies.
 function xr_bridge_shape_flags(tl, shapeId)
 {
-	var res = [0, 0, 0]
+	var res = [0, 0, 0, c_white, 1]
 	if (tl.model_part = null)
 		return res
 	if (ds_exists(tl.model_part.shape_list, ds_type_list))
@@ -419,6 +432,8 @@ function xr_bridge_shape_flags(tl, shapeId)
 				res[0] = 1
 				res[1] = shape.item_bounce
 				res[2] = shape.face_camera
+				res[3] = shape.color_blend
+				res[4] = shape.color_alpha
 				return res
 			}
 		}
@@ -498,11 +513,15 @@ function xr_bridge_register_textures()
 		}
 		else if (rt = e_tl_type.TEXT)
 		{
+			// S29: FORCE re-upload. MI re-renders changing text (the 15-18s
+			// credits cycle 4 strings through one container) into the same
+			// texture; the loader's uploaded-set dedup kept the FIRST render
+			// forever. Text textures are small - re-upload every frame.
 			for (var ti = 0; ti < 2; ti++)
 			{
 				var tspr = rtl.text_texture[ti]
 				if (tspr > 0 && sprite_exists(tspr))
-					external_call(lib_xr_bridge_reg_shape, -(rtl.id * 16 + 1 + ti), tspr)
+					external_call(lib_xr_bridge_reg_shape_force, -(rtl.id * 16 + 1 + ti), tspr)
 			}
 		}
 		else if (rt = e_tl_type.MODEL)

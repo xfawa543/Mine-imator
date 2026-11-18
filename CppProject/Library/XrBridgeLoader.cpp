@@ -57,6 +57,7 @@ namespace CppProject
 	typedef void (*XrSetBgFn)(double);
 	typedef void (*XrSetBgImageFn)(double, double, double, double, double);
 	typedef void (*XrSetAlphaFn)(double);
+	typedef void (*XrSetColorFn)(double);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -76,6 +77,7 @@ namespace CppProject
 	static XrSetBgFn s_setBg = nullptr;           // S4t: optional (older dlls)
 	static XrSetBgImageFn s_setBgImage = nullptr; // S4t: optional (older dlls)
 	static XrSetAlphaFn s_setDrawAlpha = nullptr; // S4v: optional (older dlls)
+	static XrSetColorFn s_setDrawColor = nullptr; // S29: optional (older dlls)
 	static int s_frameIndex = 0;
 
 	static bool LoadBridge()
@@ -111,6 +113,7 @@ namespace CppProject
 		s_setBg = (XrSetBgFn)GetProcAddress(s_bridge, "xr_bridge_set_bg");
 		s_setBgImage = (XrSetBgImageFn)GetProcAddress(s_bridge, "xr_bridge_set_bg_image");
 		s_setDrawAlpha = (XrSetAlphaFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_alpha");
+		s_setDrawColor = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_color");
 		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
 			s_bridge = nullptr;
@@ -382,6 +385,15 @@ namespace CppProject
 		return 1;
 	}
 
+	// S29: per-tl blend color (native uBlendColor rgb). Optional export.
+	RealType lib_xr_bridge_set_draw_color(RealType color)
+	{
+		if (!s_setDrawColor)
+			return 0;
+		s_setDrawColor((double)color);
+		return 1;
+	}
+
 	// ==== S4b: per-shape / per-item texture registry ====
 	// Resolves a sprite to its texture and registers it under a GML-side
 	// key (a shape instance id for BODYPART shapes, a tl id otherwise).
@@ -431,6 +443,45 @@ namespace CppProject
 			XrDiag("reg_shape: standalone sprite " + std::to_string(sid) +
 				" " + std::to_string(fr->image.width()) + "x" +
 				std::to_string(fr->image.height()));
+		}
+		if (!key)
+			return 0;
+		if (s_regTex2)
+			s_regTex2((uint64_t)(IntType)shapeId, key, ux, uy, uw, uh);
+		else
+			s_regTex((uint64_t)(IntType)shapeId, key);
+		return 1;
+	}
+
+	// S29: reg_shape variant that ALWAYS re-uploads the texture. MI
+	// re-renders changing text into the SAME sprite/texture; the uploaded-set
+	// dedup in lib_xr_bridge_reg_shape kept the first render forever (the
+	// 15-18s credits never changed). Text textures are small.
+	RealType lib_xr_bridge_reg_shape_force(RealType shapeId, RealType spriteId)
+	{
+		if (!s_texUp || !s_regTex)
+			return 0;
+		const IntType sid = (IntType)spriteId;
+		if (sid <= 0)
+			return 0;
+		Sprite* spr = FindSprite(sid);
+		if (!spr || spr->frames.isEmpty())
+			return 0;
+		Sprite::Frame* fr = spr->frames[0];
+		uint64_t key = 0;
+		double ux = 0, uy = 0, uw = 1, uh = 1;
+		if (fr->pageLoc && fr->pageLoc->page)
+		{
+			key = (uint64_t)(size_t)fr->pageLoc->page;
+			XrUploadQImage(fr->pageLoc->page->image, key);
+			const UvRect& uv = fr->pageLoc->uvRect;
+			ux = (double)uv.x; uy = (double)uv.y;
+			uw = (double)uv.w; uh = (double)uv.h;
+		}
+		else if (!fr->image.isNull())
+		{
+			key = (uint64_t)(IntType)sid;
+			XrUploadQImage(fr->image, key);
 		}
 		if (!key)
 			return 0;

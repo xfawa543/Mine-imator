@@ -42,6 +42,8 @@ globalvar lib_xr_bridge_diag_shape;
 globalvar lib_xr_bridge_diag_m;
 globalvar lib_xr_bridge_set_bg, lib_xr_bridge_set_bg_image;
 globalvar lib_xr_bridge_set_draw_alpha;
+globalvar lib_xr_bridge_set_draw_color;
+globalvar lib_xr_bridge_reg_shape_force;
 	
 	// Window library
 	log("External library", pathwindow)
@@ -89,6 +91,8 @@ globalvar lib_xr_bridge_set_draw_alpha;
 	lib_xr_bridge_set_bg = external_define(pathfile, "xr_bridge_set_bg", dll_cdecl, ty_real, 1, ty_real)
 	lib_xr_bridge_set_bg_image = external_define(pathfile, "xr_bridge_set_bg_image", dll_cdecl, ty_real, 1, ty_real)
 	lib_xr_bridge_set_draw_alpha = external_define(pathfile, "xr_bridge_set_draw_alpha", dll_cdecl, ty_real, 1, ty_real)
+	lib_xr_bridge_set_draw_color = external_define(pathfile, "xr_bridge_set_draw_color", dll_cdecl, ty_real, 1, ty_real)
+	lib_xr_bridge_reg_shape_force = external_define(pathfile, "xr_bridge_reg_shape_force", dll_cdecl, ty_real, 2, ty_real, ty_real)
 	
 	// Movie library
 	log("External library", pathmovie)
