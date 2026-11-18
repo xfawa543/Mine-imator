@@ -91,7 +91,7 @@ function xr_bridge_frame()
 		// S29: native per-tl blend color (uBlendColor rgb). The 8-14s
 		// surfaces are dyed black/red via this; without it the bridge drew
 		// the raw texture colors.
-		external_call(lib_xr_bridge_set_draw_color, tl.value_inherit[e_value.COLOR])
+		external_call(lib_xr_bridge_set_draw_color, tl.value_inherit[e_value.RGB_MUL])
 		var t = tl.type
 		var m = tl.matrix_render
 
@@ -124,7 +124,7 @@ function xr_bridge_frame()
 							// S29: per-shape tint/alpha (native L239-268: uBlendColor
 							// = tl blend x shape.color_blend, alpha likewise).
 							external_call(lib_xr_bridge_set_draw_color,
-								color_multiply(tl.value_inherit[e_value.COLOR], sflags[3]))
+								color_multiply(tl.value_inherit[e_value.RGB_MUL], sflags[3]))
 							external_call(lib_xr_bridge_set_draw_alpha,
 								clamp(tl.value_inherit[e_value.ALPHA] * sflags[4], 0, 1))
 							if (rs < 3)
