@@ -133,10 +133,14 @@ function xr_bridge_frame()
 							var sm = xr_bridge_shape_matrix_arr(tl, sid)
 							var rm = matrix_multiply(sm, m) // native order (render_world_model_part L290): shape-local placement FIRST, then world
 							var sflags = xr_bridge_shape_flags(tl, sid)
-							// S29: per-shape tint/alpha (native L239-268: uBlendColor
-							// = tl blend x shape.color_blend, alpha likewise).
+							// S29+S35: per-shape tint/alpha (native L239-268):
+							// uBlendColor = tl RGB_MUL x (model blend color when
+							// shape.use_model_color) x shape.color_blend.
+							var _bcol = tl.value_inherit[e_value.RGB_MUL]
+							if (tl.temp != null && tl.temp.model_use_blend_color)
+								_bcol = color_multiply(_bcol, tl.temp.model_blend_color)
 							external_call(lib_xr_bridge_set_draw_color,
-								color_multiply(tl.value_inherit[e_value.RGB_MUL], sflags[3]))
+								color_multiply(_bcol, sflags[3]))
 							external_call(lib_xr_bridge_set_draw_alpha,
 								clamp(tl.value_inherit[e_value.ALPHA] * sflags[4], 0, 1))
 							if (rs < 3)
