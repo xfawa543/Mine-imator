@@ -41,6 +41,13 @@ function xr_bridge_frame()
 	// Every tl re-resolves its texture each frame, exactly like the native
 	// render pass does: late-visible tls, skin changes and per-type texture
 	// sources all stay correct. Registration is dedup'd DLL-side.
+	// S33: render_start runs render_update_text()/render_update_item() BEFORE
+	// the world pass - the bridge bypasses render_start, so without calling
+	// them here the text sprites (and item textures) were generated once in
+	// the editor and NEVER updated during the export (the 15-18s credits
+	// stuck at "Song by: Skillet").
+	render_update_text()
+	render_update_item()
 	xr_bridge_register_textures()
 
 	// Camera
