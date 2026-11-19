@@ -491,6 +491,28 @@ namespace CppProject
 			s_regTex((uint64_t)(IntType)shapeId, key);
 		return 1;
 	}
+	// S30: register a GM TEXTURE id (not a sprite!). MI's text lives in
+	// texture_surface(surf) results - texture ids, freshly created on every
+	// text change (the old one is texture_free'd). FindSprite() on a texture
+	// id resolves garbage, which is why the bridge text never updated.
+	// Always re-uploads (text regenerates).
+	RealType lib_xr_bridge_reg_tex_force(RealType keyId, RealType texId)
+	{
+		if (!s_texUp || !s_regTex)
+			return 0;
+		const IntType locId = (IntType)texId;
+		TexturePageLocation* loc = TexturePageLocation::Find(locId);
+		if (!loc || !loc->page || loc->page->image.isNull())
+			return 0;
+		const uint64_t key = (uint64_t)(size_t)loc->page;
+		XrUploadQImage(loc->page->image, key);
+		const UvRect& uv = loc->uvRect;
+		if (s_regTex2)
+			s_regTex2((uint64_t)(IntType)keyId, key, (double)uv.x, (double)uv.y, (double)uv.w, (double)uv.h);
+		else
+			s_regTex((uint64_t)(IntType)keyId, key);
+		return 1;
+	}
 	// S4: per-frame texture lookup by tl id (DLL-side registry).
 	RealType lib_xr_bridge_set_tex_for(RealType tlId)
 	{

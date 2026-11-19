@@ -92,6 +92,11 @@ function xr_bridge_frame()
 		// surfaces are dyed black/red via this; without it the bridge drew
 		// the raw texture colors.
 		external_call(lib_xr_bridge_set_draw_color, tl.value_inherit[e_value.RGB_MUL])
+		// S30: native per-tl color mix (uMixColor/uMixPercent,
+		// render_world_tl L101-102). The 50s pure-black character and the
+		// black surfaces mix toward a color by percent.
+		external_call(lib_xr_bridge_set_draw_mix, tl.value_inherit[e_value.MIX_COLOR],
+			tl.value_inherit[e_value.MIX_PERCENT])
 		var t = tl.type
 		var m = tl.matrix_render
 
@@ -513,15 +518,14 @@ function xr_bridge_register_textures()
 		}
 		else if (rt = e_tl_type.TEXT)
 		{
-			// S29: FORCE re-upload. MI re-renders changing text (the 15-18s
-			// credits cycle 4 strings through one container) into the same
-			// texture; the loader's uploaded-set dedup kept the FIRST render
-			// forever. Text textures are small - re-upload every frame.
+			// S30: text_texture[ti] is a TEXTURE id (texture_surface(surf)),
+			// freshly created on every text change - NOT a sprite. Register
+			// via the texture-id path with a forced re-upload.
 			for (var ti = 0; ti < 2; ti++)
 			{
-				var tspr = rtl.text_texture[ti]
-				if (tspr > 0 && sprite_exists(tspr))
-					external_call(lib_xr_bridge_reg_shape_force, -(rtl.id * 16 + 1 + ti), tspr)
+				var ttex = rtl.text_texture[ti]
+				if (ttex != null && ttex > 0)
+					external_call(lib_xr_bridge_reg_tex_force, -(rtl.id * 16 + 1 + ti), ttex)
 			}
 		}
 		else if (rt = e_tl_type.MODEL)
