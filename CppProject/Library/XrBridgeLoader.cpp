@@ -58,6 +58,7 @@ namespace CppProject
 	typedef void (*XrSetBgImageFn)(double, double, double, double, double);
 	typedef void (*XrSetAlphaFn)(double);
 	typedef void (*XrSetColorFn)(double);
+	typedef void (*XrSetMixFn)(double, double);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -78,6 +79,7 @@ namespace CppProject
 	static XrSetBgImageFn s_setBgImage = nullptr; // S4t: optional (older dlls)
 	static XrSetAlphaFn s_setDrawAlpha = nullptr; // S4v: optional (older dlls)
 	static XrSetColorFn s_setDrawColor = nullptr; // S29: optional (older dlls)
+	static XrSetMixFn s_setDrawMix = nullptr;     // S30: optional (older dlls)
 	static int s_frameIndex = 0;
 
 	static bool LoadBridge()
@@ -114,6 +116,7 @@ namespace CppProject
 		s_setBgImage = (XrSetBgImageFn)GetProcAddress(s_bridge, "xr_bridge_set_bg_image");
 		s_setDrawAlpha = (XrSetAlphaFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_alpha");
 		s_setDrawColor = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_color");
+		s_setDrawMix = (XrSetMixFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_mix");
 		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
 			s_bridge = nullptr;
@@ -391,6 +394,15 @@ namespace CppProject
 		if (!s_setDrawColor)
 			return 0;
 		s_setDrawColor((double)color);
+		return 1;
+	}
+
+	// S30: per-tl color mix (uMixColor/uMixPercent). Optional export.
+	RealType lib_xr_bridge_set_draw_mix(RealType color, RealType percent)
+	{
+		if (!s_setDrawMix)
+			return 0;
+		s_setDrawMix((double)color, (double)percent);
 		return 1;
 	}
 
