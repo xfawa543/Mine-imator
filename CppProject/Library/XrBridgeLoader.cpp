@@ -59,6 +59,7 @@ namespace CppProject
 	typedef void (*XrSetAlphaFn)(double);
 	typedef void (*XrSetColorFn)(double);
 	typedef void (*XrSetMixFn)(double, double);
+	typedef void (*XrLightsFn)(int, const double*, double, double, double, double, double, double, double);
 
 	static HMODULE s_bridge = nullptr;
 	static XrInitFn s_init = nullptr;
@@ -80,6 +81,7 @@ namespace CppProject
 	static XrSetAlphaFn s_setDrawAlpha = nullptr; // S4v: optional (older dlls)
 	static XrSetColorFn s_setDrawColor = nullptr; // S29: optional (older dlls)
 	static XrSetMixFn s_setDrawMix = nullptr;     // S30: optional (older dlls)
+	static XrLightsFn s_lights = nullptr;         // S36: optional (older dlls)
 	static int s_frameIndex = 0;
 
 	static bool LoadBridge()
@@ -117,6 +119,7 @@ namespace CppProject
 		s_setDrawAlpha = (XrSetAlphaFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_alpha");
 		s_setDrawColor = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_color");
 		s_setDrawMix = (XrSetMixFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_mix");
+		s_lights = (XrLightsFn)GetProcAddress(s_bridge, "xr_bridge_set_lights");
 		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
 			s_bridge = nullptr;
@@ -406,6 +409,31 @@ namespace CppProject
 		return 1;
 	}
 
+	// S36: scene lights + camera post, read DIRECTLY from the engine globals
+	// (app_update_animate fills background_light_data every frame; light 0 =
+	// the sun, lights 1+ = point/spot lights). Optional export.
+	RealType lib_xr_bridge_set_lights_app()
+	{
+		if (!s_lights)
+			return 0;
+		if (global::_app == nullptr)
+			return 0;
+		const IntType amount = global::_app->background_light_amount;
+		const IntType floats = amount * 8;
+		double data[64 * 8];
+		for (IntType i = 0; i < floats && i < 64 * 8; i++)
+			data[i] = (double)global::_app->background_light_data[i];
+		const VecType sun = global::_app->background_sun_direction;
+		const IntType amb = (IntType)global::_app->background_ambient_color_final;
+		double tonemapper = 0, exposure = 1, gamma = 1;
+		tonemapper = (double)global::render_tonemapper;
+		exposure = (double)global::render_exposure;
+		gamma = (double)global::render_gamma;
+		s_lights((int)amount, data,
+			(double)sun.x, (double)sun.y, (double)sun.z,
+			(double)amb, tonemapper, exposure, gamma);
+		return 1;
+	}
 	// ==== S4b: per-shape / per-item texture registry ====
 	// Resolves a sprite to its texture and registers it under a GML-side
 	// key (a shape instance id for BODYPART shapes, a tl id otherwise).

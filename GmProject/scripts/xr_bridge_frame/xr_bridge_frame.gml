@@ -48,6 +48,9 @@ function xr_bridge_frame()
 	// stuck at "Song by: Skillet").
 	render_update_text()
 	render_update_item()
+	// S36: scene lights + camera post (the native
+	// shader_color_fog_lights_set inputs, read engine-side by the loader).
+	external_call(lib_xr_bridge_set_lights_app)
 	xr_bridge_register_textures()
 
 	// Camera
