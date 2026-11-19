@@ -518,14 +518,15 @@ function xr_bridge_register_textures()
 		}
 		else if (rt = e_tl_type.TEXT)
 		{
-			// S30: text_texture[ti] is a TEXTURE id (texture_surface(surf)),
-			// freshly created on every text change - NOT a sprite. Register
-			// via the texture-id path with a forced re-upload.
+			// S32: texture_surface() = sprite_create_from_surface() - it
+			// returns a SPRITE id (fresh, with a GPU->CPU captured image per
+			// text change). Register via the sprite force-upload path (the
+			// S30 texture-id detour resolved garbage = blank paper).
 			for (var ti = 0; ti < 2; ti++)
 			{
-				var ttex = rtl.text_texture[ti]
-				if (ttex != null && ttex > 0)
-					external_call(lib_xr_bridge_reg_tex_force, -(rtl.id * 16 + 1 + ti), ttex)
+				var tspr = rtl.text_texture[ti]
+				if (tspr > 0 && sprite_exists(tspr))
+					external_call(lib_xr_bridge_reg_shape_force, -(rtl.id * 16 + 1 + ti), tspr)
 			}
 		}
 		else if (rt = e_tl_type.MODEL)
