@@ -107,6 +107,9 @@ function xr_bridge_frame()
 		// black surfaces mix toward a color by percent.
 		external_call(lib_xr_bridge_set_draw_mix, tl.value_inherit[e_value.MIX_COLOR],
 			tl.value_inherit[e_value.MIX_PERCENT])
+		// S38: native per-tl emissive (render_world_tl L119-123, uEmissive
+		// uniform). The DLL max()'s this with the vertex-baked emissive.
+		external_call(lib_xr_bridge_set_draw_emissive, tl.value_inherit[e_value.EMISSIVE])
 		var t = tl.type
 		var m = tl.matrix_render
 

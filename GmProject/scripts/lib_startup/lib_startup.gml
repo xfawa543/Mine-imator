@@ -46,6 +46,7 @@ globalvar lib_xr_bridge_set_draw_color;
 globalvar lib_xr_bridge_reg_shape_force;
 globalvar lib_xr_bridge_reg_tex_force;
 globalvar lib_xr_bridge_set_draw_mix;
+globalvar lib_xr_bridge_set_draw_emissive;
 globalvar lib_xr_bridge_set_lights_app;
 	
 	// Window library
@@ -98,6 +99,7 @@ globalvar lib_xr_bridge_set_lights_app;
 	lib_xr_bridge_reg_shape_force = external_define(pathfile, "xr_bridge_reg_shape_force", dll_cdecl, ty_real, 2, ty_real, ty_real)
 	lib_xr_bridge_reg_tex_force = external_define(pathfile, "xr_bridge_reg_tex_force", dll_cdecl, ty_real, 2, ty_real, ty_real)
 	lib_xr_bridge_set_draw_mix = external_define(pathfile, "xr_bridge_set_draw_mix", dll_cdecl, ty_real, 2, ty_real, ty_real)
+	lib_xr_bridge_set_draw_emissive = external_define(pathfile, "xr_bridge_set_draw_emissive", dll_cdecl, ty_real, 1, ty_real)
 	lib_xr_bridge_set_lights_app = external_define(pathfile, "xr_bridge_set_lights_app", dll_cdecl, ty_real, 0)
 	
 	// Movie library

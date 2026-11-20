@@ -81,6 +81,7 @@ namespace CppProject
 	static XrSetAlphaFn s_setDrawAlpha = nullptr; // S4v: optional (older dlls)
 	static XrSetColorFn s_setDrawColor = nullptr; // S29: optional (older dlls)
 	static XrSetMixFn s_setDrawMix = nullptr;     // S30: optional (older dlls)
+	static XrSetColorFn s_setDrawEmissive = nullptr; // S38: optional (older dlls)
 	static XrLightsFn s_lights = nullptr;         // S36: optional (older dlls)
 	static int s_frameIndex = 0;
 
@@ -119,6 +120,7 @@ namespace CppProject
 		s_setDrawAlpha = (XrSetAlphaFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_alpha");
 		s_setDrawColor = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_color");
 		s_setDrawMix = (XrSetMixFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_mix");
+		s_setDrawEmissive = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_emissive");
 		s_lights = (XrLightsFn)GetProcAddress(s_bridge, "xr_bridge_set_lights");
 		if (!s_init || !s_begin || !s_setMatrix || !s_setShape || !s_draw || !s_end || !s_read || !s_texUp || !s_setTex || !s_setUv || !s_regTex || !s_setTexFor)
 		{
@@ -406,6 +408,16 @@ namespace CppProject
 		if (!s_setDrawMix)
 			return 0;
 		s_setDrawMix((double)color, (double)percent);
+		return 1;
+	}
+
+	// S38: per-tl emissive (native uEmissive = value_inherit[EMISSIVE]).
+	// Optional export (older dlls ignore it).
+	RealType lib_xr_bridge_set_draw_emissive(RealType e)
+	{
+		if (!s_setDrawEmissive)
+			return 0;
+		s_setDrawEmissive((double)e);
 		return 1;
 	}
 
