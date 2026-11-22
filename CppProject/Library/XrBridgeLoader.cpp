@@ -134,19 +134,23 @@ namespace CppProject
 	// S4: diagnostics file (<prefix>\xr_loader_log.txt), set at init.
 	static std::string s_diagPath;
 
+	// S52c: diagnostics are opt-in now - XrDiag ran per registration per
+	// frame with an fopen/fclose per line (~0.3 ms each, measured), which
+	// flooded hundreds of lines per frame during exports.
+	static bool s_diagDone = false;
+	static bool s_diagOn = false;
+
 	static void XrDiag(const std::string& msg)
 	{
 		if (s_diagPath.empty())
 			return;
-		// S52c: diagnostics are opt-in now - XrDiag ran per registration per
-		// frame with an fopen/fclose per line (~0.3 ms each, measured), which
-		// flooded hundreds of lines per frame during exports.
-		static const bool s_diagOn = []
+		if (!s_diagDone)
 		{
 			char b[8] = "";
 			GetEnvironmentVariableA("XFAWA_LOADER_DIAG", b, sizeof(b));
-			return b[0] == '1';
-		}();
+			s_diagOn = (b[0] == '1');
+			s_diagDone = true;
+		}
 		if (!s_diagOn)
 			return;
 		FILE* f = fopen(s_diagPath.c_str(), "ab");
@@ -309,6 +313,15 @@ namespace CppProject
 		s_texUp(key, w, h, (const uint8_t*)rgba.constData());
 		return true;
 	}
+
+	// S52c: per-key last-registered state for the registration dedup.
+	struct XrRegLast
+	{
+		IntType sid;
+		uint64_t key;
+		double ux, uy, uw, uh;
+	};
+	static std::unordered_map<IntType, XrRegLast> s_regLast;
 
 	// ==== S4: AUTO texture - upload ALL pages + diagnostics ====
 	// Every texture page is uploaded once, keyed by the page pointer (unique,
@@ -528,9 +541,7 @@ namespace CppProject
 		// dll registry already holds the mapping, so an unchanged frame is a
 		// pure no-op). Page-pointer aware: a page reshuffle re-registers.
 		{
-			struct RegLast { IntType sid = 0; uint64_t key = 0; double ux = 0, uy = 0, uw = 0, uh = 0; };
-			static std::unordered_map<IntType, RegLast> s_regLast;
-			RegLast& last = s_regLast[(IntType)shapeId];
+			XrRegLast& last = s_regLast[(IntType)shapeId];
 			if (last.sid == sid && last.key == key &&
 				last.ux == ux && last.uy == uy && last.uw == uw && last.uh == uh)
 				return 1;
