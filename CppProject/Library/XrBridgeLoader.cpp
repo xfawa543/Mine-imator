@@ -37,6 +37,7 @@
 #include <windows.h>
 
 #include <vector>
+#include <unordered_map>
 #include <QHash>
 
 namespace CppProject
@@ -136,6 +137,17 @@ namespace CppProject
 	static void XrDiag(const std::string& msg)
 	{
 		if (s_diagPath.empty())
+			return;
+		// S52c: diagnostics are opt-in now - XrDiag ran per registration per
+		// frame with an fopen/fclose per line (~0.3 ms each, measured), which
+		// flooded hundreds of lines per frame during exports.
+		static const bool s_diagOn = []
+		{
+			char b[8] = "";
+			GetEnvironmentVariableA("XFAWA_LOADER_DIAG", b, sizeof(b));
+			return b[0] == '1';
+		}();
+		if (!s_diagOn)
 			return;
 		FILE* f = fopen(s_diagPath.c_str(), "ab");
 		if (f)
@@ -498,6 +510,21 @@ namespace CppProject
 		}
 		if (!key)
 			return 0;
+		// S52c: registration dedup - skip the whole call when the sprite id,
+		// resolved page pointer and uvRect are all unchanged for this key
+		// (the per-frame GML registration loop re-resolves everything; the
+		// dll registry already holds the mapping, so an unchanged frame is a
+		// pure no-op). Page-pointer aware: a page reshuffle re-registers.
+		{
+			struct RegLast { IntType sid = 0; uint64_t key = 0; double ux = 0, uy = 0, uw = 0, uh = 0; };
+			static std::unordered_map<IntType, RegLast> s_regLast;
+			RegLast& last = s_regLast[(IntType)shapeId];
+			if (last.sid == sid && last.key == key &&
+				last.ux == ux && last.uy == uy && last.uw == uw && last.uh == uh)
+				return 1;
+			last.sid = sid; last.key = key;
+			last.ux = ux; last.uy = uy; last.uw = uw; last.uh = uh;
+		}
 		if (s_regTex2)
 			s_regTex2((uint64_t)(IntType)shapeId, key, ux, uy, uw, uh);
 		else
