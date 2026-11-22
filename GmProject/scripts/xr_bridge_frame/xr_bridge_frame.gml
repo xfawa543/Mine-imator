@@ -129,6 +129,16 @@ function xr_bridge_frame()
 				// then draw with the FULL composed matrix (isShape=0).
 				if (ds_exists(tl.model_shape_vbuffer_map, ds_type_map))
 				{
+					// S52c: O(n) shape lookup - id->index map built once per
+					// bodypart per frame (the per-shape linear rescans of
+					// shape_list were O(n^2) in interpreted GML).
+					var shapeIdxMap = -1
+					if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
+					{
+						shapeIdxMap = ds_map_create()
+						for (var si = 0; si < ds_list_size(tl.model_part.shape_list); si++)
+							shapeIdxMap[? tl.model_part.shape_list[|si].id] = si
+					}
 					var key = ds_map_find_first(tl.model_shape_vbuffer_map)
 					while (!is_undefined(key))
 					{
@@ -136,9 +146,9 @@ function xr_bridge_frame()
 						if (vb != null && !vbuffer_is_empty(vb))
 						{
 							var sid = string_get_real(key)
-							var sm = xr_bridge_shape_matrix_arr(tl, sid)
+							var sm = xr_bridge_shape_matrix_at(tl, sid, shapeIdxMap)
 							var rm = matrix_multiply(sm, m) // native order (render_world_model_part L290): shape-local placement FIRST, then world
-							var sflags = xr_bridge_shape_flags(tl, sid)
+							var sflags = xr_bridge_shape_flags_at(tl, sid, shapeIdxMap)
 							// S29+S35: per-shape tint/alpha (native L239-268):
 							// uBlendColor = tl RGB_MUL x (model blend color when
 							// shape.use_model_color) x shape.color_blend.
@@ -193,6 +203,8 @@ function xr_bridge_frame()
 						}
 						key = ds_map_find_next(tl.model_shape_vbuffer_map, key)
 					}
+					if (shapeIdxMap != -1)
+						ds_map_destroy(shapeIdxMap)
 				}
 				break
 			}
@@ -604,3 +616,50 @@ function xr_bridge_register_textures()
 	}
 }
 
+
+// S52c: O(n) shape lookups - the caller builds an id->index ds_map once per
+// bodypart per frame; the old functions linear-rescanned shape_list per
+// shape (O(n^2) per bodypart in interpreted GML).
+function xr_bridge_shape_matrix_at(tl, sid, idxMap)
+{
+	var ident = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+	if (tl.model_part = null)
+		return ident
+	if (!ds_exists(tl.model_part.shape_list, ds_type_list))
+		return ident
+	var si = -1
+	if (idxMap != -1 && ds_map_exists(idxMap, sid))
+		si = idxMap[?sid]
+	if (si >= 0 && si < ds_list_size(tl.model_part.shape_list))
+	{
+		var shape = tl.model_part.shape_list[|si]
+		if (shape.id = sid && !is_undefined(shape.matrix))
+			return shape.matrix
+	}
+	return ident
+}
+
+function xr_bridge_shape_flags_at(tl, sid, idxMap)
+{
+	var res = [0, 0, 0, c_white, 1]
+	if (tl.model_part = null)
+		return res
+	if (!ds_exists(tl.model_part.shape_list, ds_type_list))
+		return res
+	var si = -1
+	if (idxMap != -1 && ds_map_exists(idxMap, sid))
+		si = idxMap[?sid]
+	if (si >= 0 && si < ds_list_size(tl.model_part.shape_list))
+	{
+		var shape = tl.model_part.shape_list[|si]
+		if (shape.id = sid)
+		{
+			res[0] = 1
+			res[1] = shape.item_bounce
+			res[2] = shape.face_camera
+			res[3] = shape.color_blend
+			res[4] = shape.color_alpha
+		}
+	}
+	return res
+}
