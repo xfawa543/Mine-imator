@@ -7,6 +7,7 @@
 globalvar xr_bridge_ready
 globalvar xr_bridge_did_render
 globalvar xr_bridge_takeover_active
+globalvar xr_prof_n, xr_prof_text, xr_prof_reg, xr_prof_draw, xr_prof_end
 
 function xr_bridge_frame()
 {
@@ -46,12 +47,19 @@ function xr_bridge_frame()
 	// them here the text sprites (and item textures) were generated once in
 	// the editor and NEVER updated during the export (the 15-18s credits
 	// stuck at "Song by: Skillet").
+	// S53d: per-frame section timing (env XR_FRAME_PROF=1) - one summary
+	// line per 60 frames into MI's log, localizes the exe-side wall.
+	var profOn = (environment_get_variable("XR_FRAME_PROF") = "1")
+	var pt = 0
+	if (profOn) pt = current_time
 	render_update_text()
 	render_update_item()
+	if (profOn) { xr_prof_text += current_time - pt; pt = current_time }
 	// S36: scene lights + camera post (the native
 	// shader_color_fog_lights_set inputs, read engine-side by the loader).
 	external_call(lib_xr_bridge_set_lights_app)
 	xr_bridge_register_textures()
+	if (profOn) { xr_prof_reg += current_time - pt; pt = current_time }
 
 	// Camera
 	if (timeline_camera != null)
@@ -94,22 +102,14 @@ function xr_bridge_frame()
 		// up as the stretched ribbons / paper-thin sheets in exports.
 		if (tl.hide && !tl.render_hidden)
 			continue
-		// S4v: native per-tl alpha (render_set_uniform_color uBlendColor).
-		// Scaffold tls in the Feel template are flat + ALPHA=0.01; the bridge
-		// ignored alpha and drew them opaque - the stretched ribbons.
-		external_call(lib_xr_bridge_set_draw_alpha, clamp(tl.value_inherit[e_value.ALPHA], 0, 1))
-		// S29: native per-tl blend color (uBlendColor rgb). The 8-14s
-		// surfaces are dyed black/red via this; without it the bridge drew
-		// the raw texture colors.
-		external_call(lib_xr_bridge_set_draw_color, tl.value_inherit[e_value.RGB_MUL])
-		// S30: native per-tl color mix (uMixColor/uMixPercent,
-		// render_world_tl L101-102). The 50s pure-black character and the
-		// black surfaces mix toward a color by percent.
-		external_call(lib_xr_bridge_set_draw_mix, tl.value_inherit[e_value.MIX_COLOR],
-			tl.value_inherit[e_value.MIX_PERCENT])
-		// S38: native per-tl emissive (render_world_tl L119-123, uEmissive
-		// uniform). The DLL max()'s this with the vertex-baked emissive.
-		external_call(lib_xr_bridge_set_draw_emissive, tl.value_inherit[e_value.EMISSIVE])
+		// S53c: the whole per-tl draw state in ONE external_call (the four
+		// separate calls were ~1500-2500 GML->C++ boundary crossings/frame).
+		external_call(lib_xr_bridge_set_draw_state,
+			clamp(tl.value_inherit[e_value.ALPHA], 0, 1),
+			tl.value_inherit[e_value.RGB_MUL],
+			tl.value_inherit[e_value.MIX_COLOR],
+			tl.value_inherit[e_value.MIX_PERCENT],
+			tl.value_inherit[e_value.EMISSIVE])
 		var t = tl.type
 		var m = tl.matrix_render
 
@@ -155,10 +155,12 @@ function xr_bridge_frame()
 							var _bcol = tl.value_inherit[e_value.RGB_MUL]
 							if (tl.temp != null && tl.temp.model_use_blend_color)
 								_bcol = color_multiply(_bcol, tl.temp.model_blend_color)
-							external_call(lib_xr_bridge_set_draw_color,
-								color_multiply(_bcol, sflags[3]))
-							external_call(lib_xr_bridge_set_draw_alpha,
-								clamp(tl.value_inherit[e_value.ALPHA] * sflags[4], 0, 1))
+							external_call(lib_xr_bridge_set_draw_state,
+								clamp(tl.value_inherit[e_value.ALPHA] * sflags[4], 0, 1),
+								color_multiply(_bcol, sflags[3]),
+								tl.value_inherit[e_value.MIX_COLOR],
+								tl.value_inherit[e_value.MIX_PERCENT],
+								tl.value_inherit[e_value.EMISSIVE])
 							if (rs < 3)
 							{
 								// S4j DIAG: matrix values at diag frame 900
@@ -424,8 +426,23 @@ function xr_bridge_frame()
 		}
 	}
 
+	if (profOn) { xr_prof_draw += current_time - pt; pt = current_time }
+
 	var ms = external_call(lib_xr_bridge_end_frame)
+	if (profOn) { xr_prof_end += current_time - pt; pt = current_time }
 	xr_bridge_did_render = (ms > 0)
+	if (profOn)
+	{
+		xr_prof_n += 1
+		if (xr_prof_n mod 60 = 0)
+		{
+			log("xrprof n=" + string(xr_prof_n) + " text=" + string(xr_prof_text) + " reg=" + string(xr_prof_reg) + " draw=" + string(xr_prof_draw) + " end=" + string(xr_prof_end))
+			xr_prof_text = 0
+			xr_prof_reg = 0
+			xr_prof_draw = 0
+			xr_prof_end = 0
+		}
+	}
 	return xr_bridge_did_render
 }
 
