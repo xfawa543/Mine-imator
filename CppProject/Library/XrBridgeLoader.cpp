@@ -433,6 +433,18 @@ namespace CppProject
 		return 1;
 	}
 
+	// S53c: per-tl draw state in ONE external_call (the 4 separate calls
+	// cost ~1500-2500 GML->C++ boundary crossings per frame).
+	RealType lib_xr_bridge_set_draw_state(RealType alpha, RealType color,
+		RealType mixColor, RealType mixPercent, RealType emissive)
+	{
+		if (s_setDrawAlpha) s_setDrawAlpha((double)alpha);
+		if (s_setDrawColor) s_setDrawColor((double)color);
+		if (s_setDrawMix) s_setDrawMix((double)mixColor, (double)mixPercent);
+		if (s_setDrawEmissive) s_setDrawEmissive((double)emissive);
+		return 1;
+	}
+
 	// S36: scene lights + camera post, read DIRECTLY from the engine globals
 	// (app_update_animate fills background_light_data every frame; light 0 =
 	// the sun, lights 1+ = point/spot lights). Optional export.
