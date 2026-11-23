@@ -102,6 +102,11 @@ function xr_bridge_frame()
 		// up as the stretched ribbons / paper-thin sheets in exports.
 		if (tl.hide && !tl.render_hidden)
 			continue
+		// S56: native render_world_tl - glow objects with only_render_glow render
+		// ONLY in the COLOR_GLOW pass (the glow re-render), never in the main
+		// color pass - the light-effect overlays (the f330 white bands).
+		if (tl.glow && tl.only_render_glow)
+			continue
 		// S53c: the whole per-tl draw state in ONE external_call (the four
 		// separate calls were ~1500-2500 GML->C++ boundary crossings/frame).
 		external_call(lib_xr_bridge_set_draw_state,
@@ -109,7 +114,10 @@ function xr_bridge_frame()
 			tl.value_inherit[e_value.RGB_MUL],
 			tl.value_inherit[e_value.MIX_COLOR],
 			tl.value_inherit[e_value.MIX_PERCENT],
-			tl.value_inherit[e_value.EMISSIVE])
+			tl.glow ? 1 : 0,
+			tl.only_render_glow ? 1 : 0,
+			tl.glow_texture,
+			tl.value_inherit[e_value.GLOW_COLOR])
 		var t = tl.type
 		var m = tl.matrix_render
 
@@ -160,7 +168,10 @@ function xr_bridge_frame()
 								color_multiply(_bcol, sflags[3]),
 								tl.value_inherit[e_value.MIX_COLOR],
 								tl.value_inherit[e_value.MIX_PERCENT],
-								tl.value_inherit[e_value.EMISSIVE])
+			tl.glow ? 1 : 0,
+			tl.only_render_glow ? 1 : 0,
+			tl.glow_texture,
+			tl.value_inherit[e_value.GLOW_COLOR])
 							if (rs < 3)
 							{
 								// S4j DIAG: matrix values at diag frame 900
