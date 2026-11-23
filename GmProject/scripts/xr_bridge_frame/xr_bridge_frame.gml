@@ -109,13 +109,20 @@ function xr_bridge_frame()
 			continue
 		// S53c: the whole per-tl draw state in ONE external_call (the four
 		// separate calls were ~1500-2500 GML->C++ boundary crossings/frame).
+		// S56: + glow state. The CppGen parser rejects ternaries in the arg
+		// list, so the flags are precomputed into plain vars.
+		var glowF = 0
+		if (tl.glow) glowF = 1
+		var onlyGlowF = 0
+		if (tl.only_render_glow) onlyGlowF = 1
 		external_call(lib_xr_bridge_set_draw_state,
 			clamp(tl.value_inherit[e_value.ALPHA], 0, 1),
 			tl.value_inherit[e_value.RGB_MUL],
 			tl.value_inherit[e_value.MIX_COLOR],
 			tl.value_inherit[e_value.MIX_PERCENT],
-			tl.glow ? 1 : 0,
-			tl.only_render_glow ? 1 : 0,
+			tl.value_inherit[e_value.EMISSIVE],
+			glowF,
+			onlyGlowF,
 			tl.glow_texture,
 			tl.value_inherit[e_value.GLOW_COLOR])
 		var t = tl.type
@@ -163,15 +170,20 @@ function xr_bridge_frame()
 							var _bcol = tl.value_inherit[e_value.RGB_MUL]
 							if (tl.temp != null && tl.temp.model_use_blend_color)
 								_bcol = color_multiply(_bcol, tl.temp.model_blend_color)
+							var glowF = 0
+							if (tl.glow) glowF = 1
+							var onlyGlowF = 0
+							if (tl.only_render_glow) onlyGlowF = 1
 							external_call(lib_xr_bridge_set_draw_state,
 								clamp(tl.value_inherit[e_value.ALPHA] * sflags[4], 0, 1),
 								color_multiply(_bcol, sflags[3]),
 								tl.value_inherit[e_value.MIX_COLOR],
 								tl.value_inherit[e_value.MIX_PERCENT],
-			tl.glow ? 1 : 0,
-			tl.only_render_glow ? 1 : 0,
-			tl.glow_texture,
-			tl.value_inherit[e_value.GLOW_COLOR])
+								tl.value_inherit[e_value.EMISSIVE],
+								glowF,
+								onlyGlowF,
+								tl.glow_texture,
+								tl.value_inherit[e_value.GLOW_COLOR])
 							if (rs < 3)
 							{
 								// S4j DIAG: matrix values at diag frame 900
