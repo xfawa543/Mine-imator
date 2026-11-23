@@ -57,7 +57,8 @@ namespace CppProject
 	typedef void (*XrSetTexForFn)(uint64_t);
 	typedef void (*XrSetBgFn)(double);
 	typedef void (*XrSetBgImageFn)(double, double, double, double, double);
-	typedef void (*XrSetAlphaFn)(double);
+	typedef void (*XrSetDrawStateFn)(double, double, double, double, double, double, double, double, double);
+typedef void (*XrSetAlphaFn)(double);
 	typedef void (*XrSetColorFn)(double);
 	typedef void (*XrSetMixFn)(double, double);
 	typedef void (*XrLightsFn)(int, const double*, double, double, double, double, double, double, double);
@@ -80,6 +81,7 @@ namespace CppProject
 	static XrSetBgFn s_setBg = nullptr;           // S4t: optional (older dlls)
 	static XrSetBgImageFn s_setBgImage = nullptr; // S4t: optional (older dlls)
 	static XrSetAlphaFn s_setDrawAlpha = nullptr; // S4v: optional (older dlls)
+static XrSetDrawStateFn s_setDrawState = nullptr; // S53c/S56: batched draw state (9 args)
 	static XrSetColorFn s_setDrawColor = nullptr; // S29: optional (older dlls)
 	static XrSetMixFn s_setDrawMix = nullptr;     // S30: optional (older dlls)
 	static XrSetColorFn s_setDrawEmissive = nullptr; // S38: optional (older dlls)
@@ -119,6 +121,7 @@ namespace CppProject
 		s_setBg = (XrSetBgFn)GetProcAddress(s_bridge, "xr_bridge_set_bg");
 		s_setBgImage = (XrSetBgImageFn)GetProcAddress(s_bridge, "xr_bridge_set_bg_image");
 		s_setDrawAlpha = (XrSetAlphaFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_alpha");
+	s_setDrawState = (XrSetDrawStateFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_state");
 		s_setDrawColor = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_color");
 		s_setDrawMix = (XrSetMixFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_mix");
 		s_setDrawEmissive = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_emissive");
@@ -448,9 +451,20 @@ namespace CppProject
 
 	// S53c: per-tl draw state in ONE external_call (the 4 separate calls
 	// cost ~1500-2500 GML->C++ boundary crossings per frame).
+	// S56: + glow state (uGlow, only_render_glow, uGlowTexture, uGlowColor)
+	// forwarded to the dll's 9-arg xr_bridge_set_draw_state.
 	RealType lib_xr_bridge_set_draw_state(RealType alpha, RealType color,
-		RealType mixColor, RealType mixPercent, RealType emissive)
+		RealType mixColor, RealType mixPercent, RealType emissive,
+		RealType glow, RealType onlyGlow, RealType glowTex, RealType glowColor)
 	{
+		if (s_setDrawState)
+		{
+			s_setDrawState((double)alpha, (double)color, (double)mixColor,
+				(double)mixPercent, (double)emissive, (double)glow,
+				(double)onlyGlow, (double)glowTex, (double)glowColor);
+			return 1;
+		}
+		// Older dll fallback: the 5 base values via the separate exports.
 		if (s_setDrawAlpha) s_setDrawAlpha((double)alpha);
 		if (s_setDrawColor) s_setDrawColor((double)color);
 		if (s_setDrawMix) s_setDrawMix((double)mixColor, (double)mixPercent);
