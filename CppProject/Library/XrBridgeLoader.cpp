@@ -524,11 +524,14 @@ namespace CppProject
 		else if (!fr->image.isNull())
 		{
 			key = (uint64_t)(IntType)sid;
-			if (!s_uploadedTex.count(key))
-			{
-				s_uploadedTex.insert(key);
-				XrUploadQImage(fr->image, key);
-			}
+			// S56 FIX: standalone sprites must re-upload on EVERY registration.
+			// MI paints some sprite images lazily (the eye pupil sheet is blank
+			// at first registration and gets painted later); the old once-only
+			// s_uploadedTex gate kept the first BLANK upload forever, so those
+			// draws sampled an all-transparent texture (the green pupil was
+			// invisible). The dll's S42 content-hash dedup makes an unchanged
+			// re-upload nearly free (hash check only).
+			XrUploadQImage(fr->image, key);
 			XrDiag("reg_shape: standalone sprite " + std::to_string(sid) +
 				" " + std::to_string(fr->image.width()) + "x" +
 				std::to_string(fr->image.height()));
