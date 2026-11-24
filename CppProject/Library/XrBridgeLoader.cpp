@@ -57,8 +57,9 @@ namespace CppProject
 	typedef void (*XrSetTexForFn)(uint64_t);
 	typedef void (*XrSetBgFn)(double);
 	typedef void (*XrSetBgImageFn)(double, double, double, double, double);
-	typedef void (*XrSetDrawStateFn)(double, double, double, double, double, double, double, double, double);
-typedef void (*XrSetAlphaFn)(double);
+	typedef void (*XrSetDrawStateFn)(double, double, double, double, double);
+	typedef void (*XrSetDrawStateGlowFn)(double, double, double, double);
+	typedef void (*XrSetAlphaFn)(double);
 	typedef void (*XrSetColorFn)(double);
 	typedef void (*XrSetMixFn)(double, double);
 	typedef void (*XrLightsFn)(int, const double*, double, double, double, double, double, double, double);
@@ -81,7 +82,8 @@ typedef void (*XrSetAlphaFn)(double);
 	static XrSetBgFn s_setBg = nullptr;           // S4t: optional (older dlls)
 	static XrSetBgImageFn s_setBgImage = nullptr; // S4t: optional (older dlls)
 	static XrSetAlphaFn s_setDrawAlpha = nullptr; // S4v: optional (older dlls)
-static XrSetDrawStateFn s_setDrawState = nullptr; // S53c/S56: batched draw state (9 args)
+	static XrSetDrawStateFn s_setDrawState = nullptr; // S53c: batched draw state (5 args)
+	static XrSetDrawStateGlowFn s_setDrawStateGlow = nullptr; // S56: glow state (4 args)
 	static XrSetColorFn s_setDrawColor = nullptr; // S29: optional (older dlls)
 	static XrSetMixFn s_setDrawMix = nullptr;     // S30: optional (older dlls)
 	static XrSetColorFn s_setDrawEmissive = nullptr; // S38: optional (older dlls)
@@ -122,6 +124,7 @@ static XrSetDrawStateFn s_setDrawState = nullptr; // S53c/S56: batched draw stat
 		s_setBgImage = (XrSetBgImageFn)GetProcAddress(s_bridge, "xr_bridge_set_bg_image");
 		s_setDrawAlpha = (XrSetAlphaFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_alpha");
 	s_setDrawState = (XrSetDrawStateFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_state");
+	s_setDrawStateGlow = (XrSetDrawStateGlowFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_state_glow");
 		s_setDrawColor = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_color");
 		s_setDrawMix = (XrSetMixFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_mix");
 		s_setDrawEmissive = (XrSetColorFn)GetProcAddress(s_bridge, "xr_bridge_set_draw_emissive");
@@ -451,17 +454,16 @@ static XrSetDrawStateFn s_setDrawState = nullptr; // S53c/S56: batched draw stat
 
 	// S53c: per-tl draw state in ONE external_call (the 4 separate calls
 	// cost ~1500-2500 GML->C++ boundary crossings per frame).
-	// S56: + glow state (uGlow, only_render_glow, uGlowTexture, uGlowColor)
-	// forwarded to the dll's 9-arg xr_bridge_set_draw_state.
+	// S56 COMPAT: exactly 5 args matching the dll's 5-arg export. The glow
+	// state goes through the separate 4-arg export below so old exes (which
+	// call this with 5 args) and new exes both stay ABI-clean.
 	RealType lib_xr_bridge_set_draw_state(RealType alpha, RealType color,
-		RealType mixColor, RealType mixPercent, RealType emissive,
-		RealType glow, RealType onlyGlow, RealType glowTex, RealType glowColor)
+		RealType mixColor, RealType mixPercent, RealType emissive)
 	{
 		if (s_setDrawState)
 		{
 			s_setDrawState((double)alpha, (double)color, (double)mixColor,
-				(double)mixPercent, (double)emissive, (double)glow,
-				(double)onlyGlow, (double)glowTex, (double)glowColor);
+				(double)mixPercent, (double)emissive);
 			return 1;
 		}
 		// Older dll fallback: the 5 base values via the separate exports.
@@ -470,6 +472,20 @@ static XrSetDrawStateFn s_setDrawState = nullptr; // S53c/S56: batched draw stat
 		if (s_setDrawMix) s_setDrawMix((double)mixColor, (double)mixPercent);
 		if (s_setDrawEmissive) s_setDrawEmissive((double)emissive);
 		return 1;
+	}
+
+	// S56: the glow state in a separate 4-arg call (optional; no-op on
+	// older dlls that lack the export).
+	RealType lib_xr_bridge_set_draw_state_glow(RealType glow, RealType onlyGlow,
+		RealType glowTex, RealType glowColor)
+	{
+		if (s_setDrawStateGlow)
+		{
+			s_setDrawStateGlow((double)glow, (double)onlyGlow,
+				(double)glowTex, (double)glowColor);
+			return 1;
+		}
+		return 0;
 	}
 
 	// S36: scene lights + camera post, read DIRECTLY from the engine globals

@@ -101,7 +101,8 @@ globalvar lib_xr_bridge_set_lights_app;
 	lib_xr_bridge_reg_tex_force = external_define(pathfile, "xr_bridge_reg_tex_force", dll_cdecl, ty_real, 2, ty_real, ty_real)
 	lib_xr_bridge_set_draw_mix = external_define(pathfile, "xr_bridge_set_draw_mix", dll_cdecl, ty_real, 2, ty_real, ty_real)
 lib_xr_bridge_set_draw_emissive = external_define(pathfile, "xr_bridge_set_draw_emissive", dll_cdecl, ty_real, 1, ty_real)
-lib_xr_bridge_set_draw_state = external_define(pathfile, "xr_bridge_set_draw_state", dll_cdecl, ty_real, 9, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_set_draw_state = external_define(pathfile, "xr_bridge_set_draw_state", dll_cdecl, ty_real, 5, ty_real, ty_real, ty_real, ty_real, ty_real)
+	lib_xr_bridge_set_draw_state_glow = external_define(pathfile, "xr_bridge_set_draw_state_glow", dll_cdecl, ty_real, 4, ty_real, ty_real, ty_real, ty_real)
 lib_xr_bridge_set_lights_app = external_define(pathfile, "xr_bridge_set_lights_app", dll_cdecl, ty_real, 0)
 	
 	// Movie library

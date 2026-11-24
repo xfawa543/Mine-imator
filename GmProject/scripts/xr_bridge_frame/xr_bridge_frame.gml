@@ -8,6 +8,7 @@ globalvar xr_bridge_ready
 globalvar xr_bridge_did_render
 globalvar xr_bridge_takeover_active
 globalvar xr_prof_n, xr_prof_text, xr_prof_reg, xr_prof_draw, xr_prof_end
+globalvar lib_xr_bridge_set_draw_state_glow
 
 function xr_bridge_frame()
 {
@@ -120,7 +121,8 @@ function xr_bridge_frame()
 			tl.value_inherit[e_value.RGB_MUL],
 			tl.value_inherit[e_value.MIX_COLOR],
 			tl.value_inherit[e_value.MIX_PERCENT],
-			tl.value_inherit[e_value.EMISSIVE],
+			tl.value_inherit[e_value.EMISSIVE])
+		external_call(lib_xr_bridge_set_draw_state_glow,
 			glowF,
 			onlyGlowF,
 			tl.glow_texture,
@@ -179,7 +181,8 @@ function xr_bridge_frame()
 								color_multiply(_bcol, sflags[3]),
 								tl.value_inherit[e_value.MIX_COLOR],
 								tl.value_inherit[e_value.MIX_PERCENT],
-								tl.value_inherit[e_value.EMISSIVE],
+								tl.value_inherit[e_value.EMISSIVE])
+							external_call(lib_xr_bridge_set_draw_state_glow,
 								glowF,
 								onlyGlowF,
 								tl.glow_texture,
