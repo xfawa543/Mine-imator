@@ -146,26 +146,25 @@ function xr_bridge_frame()
 				// then draw with the FULL composed matrix (isShape=0).
 				if (ds_exists(tl.model_shape_vbuffer_map, ds_type_map))
 				{
-					// S52c: O(n) shape lookup - id->index map built once per
-					// bodypart per frame (the per-shape linear rescans of
-					// shape_list were O(n^2) in interpreted GML).
-					var shapeIdxMap = -1
+					// S56i: iterate shape_list (the NATIVE draw order,
+					// render_world_model_part) instead of the ds_map. The
+					// map's hash order is arbitrary: the eyeball/iris shapes
+					// drew BEFORE the head skin, and the skin (same depth,
+					// drawn later, GL_LEQUAL) won the socket pixels - the
+					// pupils vanished. Native order = skin first, eyes last.
+					var shapeCount = 0
 					if (tl.model_part != null && ds_exists(tl.model_part.shape_list, ds_type_list))
+						shapeCount = ds_list_size(tl.model_part.shape_list)
+					for (var si = 0; si < shapeCount; si++)
 					{
-						shapeIdxMap = ds_map_create()
-						for (var si = 0; si < ds_list_size(tl.model_part.shape_list); si++)
-							shapeIdxMap[? tl.model_part.shape_list[|si].id] = si
-					}
-					var key = ds_map_find_first(tl.model_shape_vbuffer_map)
-					while (!is_undefined(key))
-					{
-						var vb = tl.model_shape_vbuffer_map[?key]
+						var shape = tl.model_part.shape_list[|si]
+						var vb = tl.model_shape_vbuffer_map[?shape.id]
 						if (vb != null && !vbuffer_is_empty(vb))
 						{
-							var sid = string_get_real(key)
-							var sm = xr_bridge_shape_matrix_at(tl, sid, shapeIdxMap)
+							var sid = shape.id
+							var sm = xr_bridge_shape_matrix_at(tl, sid, si)
 							var rm = matrix_multiply(sm, m) // native order (render_world_model_part L290): shape-local placement FIRST, then world
-							var sflags = xr_bridge_shape_flags_at(tl, sid, shapeIdxMap)
+							var sflags = xr_bridge_shape_flags_at(tl, sid, si)
 							// S29+S35: per-shape tint/alpha (native L239-268):
 							// uBlendColor = tl RGB_MUL x (model blend color when
 							// shape.use_model_color) x shape.color_blend.
@@ -229,10 +228,7 @@ function xr_bridge_frame()
 							external_call(lib_xr_bridge_set_tex_for, sid)
 							external_call(lib_xr_bridge_draw_vbuffer, vb, -1, 0)
 						}
-						key = ds_map_find_next(tl.model_shape_vbuffer_map, key)
 					}
-					if (shapeIdxMap != -1)
-						ds_map_destroy(shapeIdxMap)
 				}
 				break
 			}
@@ -663,16 +659,13 @@ function xr_bridge_register_textures()
 // S52c: O(n) shape lookups - the caller builds an id->index ds_map once per
 // bodypart per frame; the old functions linear-rescanned shape_list per
 // shape (O(n^2) per bodypart in interpreted GML).
-function xr_bridge_shape_matrix_at(tl, sid, idxMap)
+function xr_bridge_shape_matrix_at(tl, sid, si)
 {
 	var ident = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 	if (tl.model_part = null)
 		return ident
 	if (!ds_exists(tl.model_part.shape_list, ds_type_list))
 		return ident
-	var si = -1
-	if (idxMap != -1 && ds_map_exists(idxMap, sid))
-		si = idxMap[?sid]
 	if (si >= 0 && si < ds_list_size(tl.model_part.shape_list))
 	{
 		var shape = tl.model_part.shape_list[|si]
@@ -682,16 +675,13 @@ function xr_bridge_shape_matrix_at(tl, sid, idxMap)
 	return ident
 }
 
-function xr_bridge_shape_flags_at(tl, sid, idxMap)
+function xr_bridge_shape_flags_at(tl, sid, si)
 {
 	var res = [0, 0, 0, c_white, 1]
 	if (tl.model_part = null)
 		return res
 	if (!ds_exists(tl.model_part.shape_list, ds_type_list))
 		return res
-	var si = -1
-	if (idxMap != -1 && ds_map_exists(idxMap, sid))
-		si = idxMap[?sid]
 	if (si >= 0 && si < ds_list_size(tl.model_part.shape_list))
 	{
 		var shape = tl.model_part.shape_list[|si]
