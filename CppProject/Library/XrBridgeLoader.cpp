@@ -525,6 +525,16 @@ namespace CppProject
 	// bypassing TexturePageLocation::Find (its idMap can go stale).
 	RealType lib_xr_bridge_reg_shape(RealType shapeId, RealType spriteId)
 	{
+		return lib_xr_bridge_reg_shape_frame(shapeId, spriteId, 0);
+	}
+
+	// S56o: frame-aware registration. ITEMSHEET sprites (the pupil sheet!)
+	// carry one design per frame: the item's SLOT selects the frame, and the
+	// rect must be THAT frame's cell. frames[0] registered cell 0 for every
+	// slot, so the Pupils Right/Left items showed cell 0's content (the dark
+	// stripe over the eyes) instead of their own pupil design.
+	RealType lib_xr_bridge_reg_shape_frame(RealType shapeId, RealType spriteId, RealType frameIdx)
+	{
 		if (!s_texUp || !s_regTex)
 			return 0;
 		const IntType sid = (IntType)spriteId;
@@ -533,7 +543,12 @@ namespace CppProject
 		Sprite* spr = FindSprite(sid);
 		if (!spr || spr->frames.isEmpty())
 			return 0;
-		Sprite::Frame* fr = spr->frames[0];
+		int fi = (int)frameIdx;
+		if (fi < 0)
+			fi = 0;
+		if (fi >= spr->frames.size())
+			fi = (int)spr->frames.size() - 1;
+		Sprite::Frame* fr = spr->frames[fi];
 		uint64_t key = 0;
 		double ux = 0, uy = 0, uw = 1, uh = 1;
 		if (fr->pageLoc && fr->pageLoc->page)
