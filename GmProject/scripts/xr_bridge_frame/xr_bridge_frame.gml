@@ -9,6 +9,7 @@ globalvar xr_bridge_did_render
 globalvar xr_bridge_takeover_active
 globalvar xr_prof_n, xr_prof_text, xr_prof_reg, xr_prof_draw, xr_prof_end
 globalvar lib_xr_bridge_set_draw_state_glow
+globalvar xr_gml_frame
 
 function xr_bridge_frame()
 {
@@ -23,6 +24,7 @@ function xr_bridge_frame()
 		xr_bridge_did_render = false
 		return 0
 	}
+	xr_gml_frame += 1
 
 	if (xr_bridge_ready != 1)
 	{
@@ -334,6 +336,26 @@ function xr_bridge_frame()
 
 			case e_tl_type.ITEM:
 			{
+				// S56m DIAG: why do the Pupils Right/Left items never reach
+				// the draw queue? Log every ITEM tl's state at frames 598-602.
+				if (xr_gml_frame >= 598 && xr_gml_frame <= 602)
+				{
+					var df = file_text_open_append(prefix + "_itemdiag.txt")
+					if (df > 0)
+					{
+						file_text_write_string(df, "f" + string(xr_gml_frame) +
+							" id=" + string(tl.id) +
+							" name=" + string(tl.name) +
+							" ivb=" + string(tl.item_vbuffer != null) +
+							" temp=" + string(tl.temp != null) +
+							" tvb=" + string(tl.temp != null && tl.temp.item_vbuffer != null) +
+							" vis=" + string(tl.value_inherit[e_value.VISIBLE]) +
+							" alpha=" + string(tl.value_inherit[e_value.ALPHA]) +
+							" mat=(" + string(m[12]) + "," + string(m[13]) + "," + string(m[14]) + ")")
+						file_text_writeln(df)
+						file_text_close(df)
+					}
+				}
 				// S4h: replicate render_world_item transforms in native order:
 				// 1) facecamera pre (pivot rotation at item axis point (8, .5*is3d))
 				// 2) rotate/spin pre (same pivot, continuous Z rotation)
