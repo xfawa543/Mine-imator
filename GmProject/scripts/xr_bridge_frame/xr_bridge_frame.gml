@@ -85,6 +85,25 @@ function xr_bridge_frame()
 		var tl = render_list[|i]
 		if (tl = timeline_camera)
 			continue
+		// S56n DIAG: the FULL tl census at frame 600 - type, visibility,
+		// alpha and world translation for every tl in the render list.
+		if (xr_gml_frame = 600)
+		{
+			var df2 = file_text_open_append(prefix + "_tlcensus.txt")
+			if (df2 > 0)
+			{
+				file_text_write_string(df2, "i=" + string(i) +
+					" id=" + string(tl.id) +
+					" name=" + string(tl.name) +
+					" type=" + string(tl.type) +
+					" depth=" + string(tl.depth) +
+					" vis=" + string(tl.value_inherit[e_value.VISIBLE]) +
+					" alpha=" + string(tl.value_inherit[e_value.ALPHA]) +
+					" mat=(" + string(tl.matrix_render[12]) + "," + string(tl.matrix_render[13]) + "," + string(tl.matrix_render[14]) + ")")
+				file_text_writeln(df2)
+				file_text_close(df2)
+			}
+		}
 		// S4k: native visibility culling (render_world_tl L22 + L71).
 		// value_inherit is refreshed per frame by tl_update_matrix and already
 		// includes the parent-chain inheritance, matching the native data the
