@@ -10,6 +10,9 @@ globalvar xr_bridge_takeover_active
 globalvar xr_prof_n, xr_prof_text, xr_prof_reg, xr_prof_draw, xr_prof_end
 globalvar lib_xr_bridge_set_draw_state_glow
 globalvar xr_gml_frame
+// S56r: per (sheet sprite, slot) captured sprites for ITEM registration.
+globalvar xr_item_sheet_cap
+globalvar xr_item_sheet_reg
 
 function xr_bridge_frame()
 {
@@ -38,6 +41,8 @@ function xr_bridge_frame()
 		}
 		xr_bridge_ready = 1
 		log("XR bridge init ok", string(project_video_width) + "x" + string(project_video_height))
+		xr_item_sheet_cap = ds_map_create()
+		xr_item_sheet_reg = ds_map_create()
 		external_call(lib_xr_bridge_auto_tex)
 	}
 
@@ -623,11 +628,66 @@ function xr_bridge_register_textures()
 				ires = mc_res
 			var ispr = (ires.item_sheet_texture != null ? ires.item_sheet_texture : ires.texture)
 			if (ispr > 0 && sprite_exists(ispr))
-				// S56o: ITEMSHEET items register their OWN SLOT's frame - the
-				// Pupils Right/Left items sit on slot 6 of the pupil sheet;
-				// frames[0] registered cell 0's rect for every slot, so the
-				// pupils showed cell 0's content (the dark eye stripe).
-				external_call(lib_xr_bridge_reg_shape_frame, rtl.id, ispr, rtl.value_inherit[e_value.ITEM_SLOT])
+			{
+				// S56r: capture the item sheet cell through a SURFACE and
+				// register the captured sprite. The sheet sprite's page
+				// CPU-mirror can stay a blank white canvas (GM uploads
+				// sprite_add PNGs GPU-side only; re-uploading the page
+				// mirror keeps feeding white), which rendered the Pupils as
+				// a white quad over the white eyeball. draw_sprite forces
+				// GM to sample the real GPU texture; the
+				// sprite_create_from_surface copy carries real CPU pixels
+				// (same path the working TEXT registration uses).
+				// Re-capture every 60 frames in case MI paints the sheet
+				// lazily after load.
+				var slot = rtl.value_inherit[e_value.ITEM_SLOT]
+				if (slot < 0 || slot >= sprite_get_number(ispr))
+					slot = 0
+				var stale = ((xr_gml_frame % 60) = 0)
+				var ck = string(ispr) + "_" + string(slot)
+				var cspr = 0
+				if (ds_map_exists(xr_item_sheet_cap, ck))
+				{
+					cspr = ds_map_find_value(xr_item_sheet_cap, ck)
+					if (stale)
+					{
+						if (sprite_exists(cspr))
+							sprite_delete(cspr)
+						cspr = 0
+					}
+				}
+				if (cspr <= 0 || !sprite_exists(cspr))
+				{
+					var sw = sprite_get_width(ispr)
+					var sh = sprite_get_height(ispr)
+					if (sw > 0 && sh > 0)
+					{
+						var surf = surface_create(sw, sh)
+						if (surf > 0)
+						{
+							surface_set_target(surf)
+							draw_clear_alpha(c_white, 0)
+							draw_sprite(ispr, slot, 0, 0)
+							surface_reset_target()
+							cspr = sprite_create_from_surface(surf, 0, 0, sw, sh, false, false, 0, 0)
+							surface_free(surf)
+							if (cspr > 0)
+								ds_map_replace(xr_item_sheet_cap, ck, cspr)
+						}
+					}
+				}
+				if (cspr > 0 && sprite_exists(cspr))
+				{
+					// The captured sprite's pixels only change on re-capture
+					// frames; the DLL registry persists, so (re-)register
+					// then. The force variant re-uploads the CPU image.
+					if (stale || !ds_map_exists(xr_item_sheet_reg, ck))
+					{
+						ds_map_replace(xr_item_sheet_reg, ck, 1)
+						external_call(lib_xr_bridge_reg_shape_force, rtl.id, cspr)
+					}
+				}
+			}
 		}
 		else if (rt = e_tl_type.TEXT)
 		{
