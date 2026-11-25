@@ -303,6 +303,8 @@ namespace CppProject
 
 	// ==== S4 texture upload helpers (shared by auto_tex + reg_shape) ====
 	static std::set<uint64_t> s_uploadedTex;
+	// S56q: per-page last (re-)upload tick for the lazy-page re-capture.
+	static std::unordered_map<uint64_t, uint64_t> s_pageUpLast;
 
 	static bool XrUploadQImage(const QImage& img, uint64_t key)
 	{
@@ -554,9 +556,19 @@ namespace CppProject
 		if (fr->pageLoc && fr->pageLoc->page)
 		{
 			key = (uint64_t)(size_t)fr->pageLoc->page;
-			if (!s_uploadedTex.count(key))
+			// S56q: MI composes/paints texture pages LAZILY. The once-only
+			// s_uploadedTex gate captured the page's first BLANK/pre-paint
+			// state and kept it forever: the Pupils itemsheet page stayed a
+			// solid white canvas (white pupil quad over the white eyeball =
+			// invisible pupil) and pre-skin model sheets stayed dark (the
+			// dark eyelid bars over the eyes). Re-capture every page at
+			// most once per 250ms - the dll's S42 content-hash dedup makes
+			// unchanged re-uploads nearly free.
+			const uint64_t nowMs = (uint64_t)GetTickCount();
+			auto pu = s_pageUpLast.find(key);
+			if (pu == s_pageUpLast.end() || nowMs - pu->second >= 250)
 			{
-				s_uploadedTex.insert(key);
+				s_pageUpLast[key] = nowMs;
 				XrUploadQImage(fr->pageLoc->page->image, key);
 			}
 			// S4b: vbuffer UVs are sprite-relative 0-1; pass the sprite's
