@@ -672,7 +672,10 @@ function xr_bridge_register_textures()
 							cspr = sprite_create_from_surface(surf, 0, 0, sw, sh, false, false, 0, 0)
 							surface_free(surf)
 							if (cspr > 0)
-								ds_map_replace(xr_item_sheet_cap, ck, cspr)
+							{
+								ds_map_delete(xr_item_sheet_cap, ck)
+								ds_map_add(xr_item_sheet_cap, ck, cspr)
+							}
 						}
 					}
 				}
@@ -683,7 +686,8 @@ function xr_bridge_register_textures()
 					// then. The force variant re-uploads the CPU image.
 					if (stale || !ds_map_exists(xr_item_sheet_reg, ck))
 					{
-						ds_map_replace(xr_item_sheet_reg, ck, 1)
+						ds_map_delete(xr_item_sheet_reg, ck)
+						ds_map_add(xr_item_sheet_reg, ck, 1)
 						external_call(lib_xr_bridge_reg_shape_force, rtl.id, cspr)
 					}
 				}
