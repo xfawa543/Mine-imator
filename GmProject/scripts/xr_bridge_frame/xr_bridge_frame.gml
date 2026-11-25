@@ -626,71 +626,26 @@ function xr_bridge_register_textures()
 			var ires = rtl.item_res
 			if (ires = null || !res_is_ready(ires))
 				ires = mc_res
-			var ispr = (ires.item_sheet_texture != null ? ires.item_sheet_texture : ires.texture)
-			if (ispr > 0 && sprite_exists(ispr))
+			if (ires.item_sheet_texture != null)
 			{
-				// S56r: capture the item sheet cell through a SURFACE and
-				// register the captured sprite. The sheet sprite's page
-				// CPU-mirror can stay a blank white canvas (GM uploads
-				// sprite_add PNGs GPU-side only; re-uploading the page
-				// mirror keeps feeding white), which rendered the Pupils as
-				// a white quad over the white eyeball. draw_sprite forces
-				// GM to sample the real GPU texture; the
-				// sprite_create_from_surface copy carries real CPU pixels
-				// (same path the working TEXT registration uses).
-				// Re-capture every 60 frames in case MI paints the sheet
-				// lazily after load.
-				var slot = rtl.value_inherit[e_value.ITEM_SLOT]
-				if (slot < 0 || slot >= sprite_get_number(ispr))
-					slot = 0
-				var stale = ((xr_gml_frame % 60) = 0)
-				var ck = string(ispr) + "_" + string(slot)
-				var cspr = 0
-				if (ds_map_exists(xr_item_sheet_cap, ck))
-				{
-					cspr = ds_map_find_value(xr_item_sheet_cap, ck)
-					if (stale)
-					{
-						if (sprite_exists(cspr))
-							sprite_delete(cspr)
-						cspr = 0
-					}
-				}
-				if (cspr <= 0 || !sprite_exists(cspr))
-				{
-					var sw = sprite_get_width(ispr)
-					var sh = sprite_get_height(ispr)
-					if (sw > 0 && sh > 0)
-					{
-						var surf = surface_create(sw, sh)
-						if (surf > 0)
-						{
-							surface_set_target(surf)
-							draw_clear_alpha(c_white, 0)
-							draw_sprite(ispr, slot, 0, 0)
-							surface_reset_target()
-							cspr = sprite_create_from_surface(surf, 0, 0, sw, sh, false, false, 0, 0)
-							surface_free(surf)
-							if (cspr > 0)
-							{
-								ds_map_delete(xr_item_sheet_cap, ck)
-								ds_map_add(xr_item_sheet_cap, ck, cspr)
-							}
-						}
-					}
-				}
-				if (cspr > 0 && sprite_exists(cspr))
-				{
-					// The captured sprite's pixels only change on re-capture
-					// frames; the DLL registry persists, so (re-)register
-					// then. The force variant re-uploads the CPU image.
-					if (stale || !ds_map_exists(xr_item_sheet_reg, ck))
-					{
-						ds_map_delete(xr_item_sheet_reg, ck)
-						ds_map_add(xr_item_sheet_reg, ck, 1)
-						external_call(lib_xr_bridge_reg_shape_force, rtl.id, cspr)
-					}
-				}
+				// S56u: item_sheet_texture is a GM TEXTURE id (packed by
+				// res_load_pack_item_textures via texture_surface; native
+				// render_world_item binds it with render_set_texture). The
+				// old sprite path passed it as a SPRITE id into
+				// FindSprite(), which resolved an unrelated white sprite
+				// (id collision) - the Pupils rendered as a white quad over
+				// the white eyeball. Register through the TEXTURE path
+				// (TexturePageLocation::Find), the same path the working
+				// TEXT registration uses. Force variant: the sheet is
+				// repacked on asset changes, the dll hash-dedups unchanged
+				// re-uploads.
+				external_call(lib_xr_bridge_reg_tex_force, rtl.id, ires.item_sheet_texture)
+			}
+			else
+			{
+				var ispr = ires.texture
+				if (ispr > 0 && sprite_exists(ispr))
+					external_call(lib_xr_bridge_reg_shape_force, rtl.id, ispr)
 			}
 		}
 		else if (rt = e_tl_type.TEXT)
