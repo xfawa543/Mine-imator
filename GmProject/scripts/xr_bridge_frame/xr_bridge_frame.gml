@@ -623,7 +623,11 @@ function xr_bridge_register_textures()
 				ires = mc_res
 			var ispr = (ires.item_sheet_texture != null ? ires.item_sheet_texture : ires.texture)
 			if (ispr > 0 && sprite_exists(ispr))
-				external_call(lib_xr_bridge_reg_shape, rtl.id, ispr)
+				// S56o: ITEMSHEET items register their OWN SLOT's frame - the
+				// Pupils Right/Left items sit on slot 6 of the pupil sheet;
+				// frames[0] registered cell 0's rect for every slot, so the
+				// pupils showed cell 0's content (the dark eye stripe).
+				external_call(lib_xr_bridge_reg_shape_frame, rtl.id, ispr, rtl.value_inherit[e_value.ITEM_SLOT])
 		}
 		else if (rt = e_tl_type.TEXT)
 		{
