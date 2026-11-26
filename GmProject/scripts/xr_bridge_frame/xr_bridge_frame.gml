@@ -664,12 +664,12 @@ function xr_bridge_register_textures()
 				var row = slot div gwid
 				var cw = 1.0 / gwid
 				var ch = 1.0 / ghei
-				// S56z: the item vbuffer is REBUILT per slot with the design
-				// cell's SHEET-relative UVs (rawUV measured = 5/16 at slot 5)
-				// - the rect must be IDENTITY or the bake double-compresses
-				// the sampling into a one-texel sliver (the gray bar).
-				// col/row kept for the diag record only.
-				var ok = external_call(lib_xr_bridge_reg_png, rtl.id, project_folder + "/" + ires.filename, 0, 0, 1, 1)
+				// S57: cell-crop mode - the loader crops the design cell out
+				// of the sheet PNG and registers the INVERSE rect
+				// (-col, -row, gwid, ghei): baked = -col + raw*gwid maps the
+				// sheet-relative cell UVs (rawUV = col/gwid at slot) exactly
+				// onto [0,1] of the cropped cell texture.
+				var ok = external_call(lib_xr_bridge_reg_png, rtl.id, project_folder + "/" + ires.filename, -col, -row, gwid, ghei)
 				if (!ok)
 				{
 					var ispr = ires.item_sheet_texture
