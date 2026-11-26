@@ -615,6 +615,53 @@ namespace CppProject
 		return 1;
 	}
 
+	// S56w: register an item sheet DIRECTLY FROM ITS PNG FILE. The
+	// texture_create sheet "texture" is a sprite_add sprite living on a GM
+	// texture page whose CPU mirror is blank in the XGraphics integration
+	// (sprite_add uploads GPU-side only), so every route tried so far -
+	// the page mirror upload, the texture path (no mirror at all) and
+	// drawing the sprite into a surface during the takeover (routed to the
+	// white-mirror GL) - produced a white sheet and the Pupils rendered as
+	// a white quad over the white eyeball. QImage reads the source PNG
+	// with real alpha and uploads it under the shape key with an identity
+	// rect (the item vbuffer UVs are sprite-relative 0-1). Cached per path
+	// - the decode runs once, the registration re-runs per frame.
+	RealType lib_xr_bridge_reg_png(RealType shapeId, StringType path)
+	{
+		if (!s_texUp || !s_regTex)
+			return 0;
+		static std::unordered_map<std::string, uint64_t> s_pngKeys;
+		const QString qpath = (QString)path;
+		const std::string pstd = qpath.toStdString();
+		uint64_t key = 0;
+		auto it = s_pngKeys.find(pstd);
+		if (it != s_pngKeys.end())
+		{
+			key = it->second;
+		}
+		else
+		{
+			QImage img(qpath);
+			if (img.isNull())
+			{
+				XrDiag("reg_png: load failed " + pstd);
+				return 0;
+			}
+			if (img.format() != QImage::Format_RGBA8888)
+				img = img.convertToFormat(QImage::Format_RGBA8888);
+			key = (uint64_t)(IntType)shapeId;
+			if (!XrUploadQImage(img, key))
+				return 0;
+			s_pngKeys[pstd] = key;
+			XrDiag("reg_png: uploaded " + pstd + " " + std::to_string(img.width()) + "x" + std::to_string(img.height()));
+		}
+		if (s_regTex2)
+			s_regTex2((uint64_t)(IntType)shapeId, key, 0.0, 0.0, 1.0, 1.0);
+		else
+			s_regTex((uint64_t)(IntType)shapeId, key);
+		return 1;
+	}
+
 	// S29: reg_shape variant that ALWAYS re-uploads the texture. MI
 	// re-renders changing text into the SAME sprite/texture; the uploaded-set
 	// dedup in lib_xr_bridge_reg_shape kept the first render forever (the
