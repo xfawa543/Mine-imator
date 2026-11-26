@@ -626,7 +626,7 @@ namespace CppProject
 	// with real alpha and uploads it under the shape key with an identity
 	// rect (the item vbuffer UVs are sprite-relative 0-1). Cached per path
 	// - the decode runs once, the registration re-runs per frame.
-	RealType lib_xr_bridge_reg_png(RealType shapeId, StringType path)
+	RealType lib_xr_bridge_reg_png(RealType shapeId, StringType path, RealType ux, RealType uy, RealType uw, RealType uh)
 	{
 		if (!s_texUp || !s_regTex)
 			return 0;
@@ -656,7 +656,7 @@ namespace CppProject
 			XrDiag("reg_png: uploaded " + pstd + " " + std::to_string(img.width()) + "x" + std::to_string(img.height()));
 		}
 		if (s_regTex2)
-			s_regTex2((uint64_t)(IntType)shapeId, key, 0.0, 0.0, 1.0, 1.0);
+			s_regTex2((uint64_t)(IntType)shapeId, key, (double)ux, (double)uy, (double)uw, (double)uh);
 		else
 			s_regTex((uint64_t)(IntType)shapeId, key);
 		return 1;
