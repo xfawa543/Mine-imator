@@ -628,51 +628,22 @@ function xr_bridge_register_textures()
 				ires = mc_res
 			if (ires.item_sheet_texture != null)
 			{
-				// S56v: item_sheet_texture is a GM TEXTURE (texture_create
-				// from the item's PNG; native render_world_item binds it
-				// with render_set_texture). Two dead ends proven by dumps:
-				// the sprite path passes the texture id into FindSprite()
-				// (id collision -> an unrelated white sprite), and the
-				// texture path reg_tex_force skips it because a
-				// texture_create texture has NO CPU page mirror
-				// (page->image is null -> white fallback). Draw the
-				// texture into a cached surface with MI's own
-				// draw_texture_part (the same call
-				// res_load_pack_item_textures uses), then register the
-				// surface texture - texture_surface results carry a real
-				// CPU mirror (the working TEXT path).
-				var ck = string(ires.item_sheet_texture)
-				var ssurf = 0
-				if (ds_map_exists(xr_item_sheet_cap, ck))
-					ssurf = ds_map_find_value(xr_item_sheet_cap, ck)
-				if (ssurf <= 0 || !surface_exists(ssurf))
+				// S56w: register the item sheet DIRECTLY FROM ITS PNG FILE.
+				// item_sheet_texture = texture_create(fn) = a sprite_add
+				// sprite on a GM texture page whose CPU mirror is blank in
+				// the integration, so every mirror/draw-capture route
+				// produced white (the Pupils rendered as a white quad over
+				// the white eyeball). The loader reads the source PNG with
+				// Qt (real alpha) and uploads it with an identity rect.
+				// Resources live in the project folder (new_res copies
+				// them there); fall back to the sprite path if the file
+				// read fails.
+				var ok = external_call(lib_xr_bridge_reg_png, rtl.id, project_folder + "/" + ires.filename)
+				if (!ok)
 				{
-					var tw = texture_width(ires.item_sheet_texture)
-					var th = texture_height(ires.item_sheet_texture)
-					if (tw > 0 && th > 0)
-					{
-						ssurf = surface_create(tw, th)
-						if (ssurf > 0)
-						{
-							surface_set_target(ssurf)
-							draw_clear_alpha(c_black, 0)
-							draw_texture_part(ires.item_sheet_texture, 0, 0, 0, 0, tw, th, 1, 1)
-							surface_reset_target()
-							ds_map_delete(xr_item_sheet_cap, ck)
-							ds_map_add(xr_item_sheet_cap, ck, ssurf)
-						}
-					}
-				}
-				if (ssurf > 0 && surface_exists(ssurf))
-				{
-					// texture_surface() = MI's wrapper over
-					// sprite_create_from_surface - returns a SPRITE with a
-					// real CPU-captured image. Register via the sprite
-					// force-upload path (reads fr->image), exactly like the
-					// working TEXT registration.
-					var cspr = texture_surface(ssurf)
-					if (cspr > 0 && sprite_exists(cspr))
-						external_call(lib_xr_bridge_reg_shape_force, rtl.id, cspr)
+					var ispr = ires.item_sheet_texture
+					if (ispr > 0 && sprite_exists(ispr))
+						external_call(lib_xr_bridge_reg_shape, rtl.id, ispr)
 				}
 			}
 			else
