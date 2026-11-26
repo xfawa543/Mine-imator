@@ -641,7 +641,13 @@ function xr_bridge_register_textures()
 				// frame-relative 0-1. Resources live in the project folder
 				// (new_res copies them there); fall back to the sprite path
 				// if the file read fails.
-				var slot = rtl.value_inherit[e_value.ITEM_SLOT]
+				// S56y: ITEM_SLOT lives in the tl's OWN animated value array
+				// (it is in the non-inheriting value list,
+				// app_startup_lists L211) - value_inherit never carries it
+				// and always read 0 = design cell 0 (the wrong variant).
+				var slot = rtl.value[e_value.ITEM_SLOT]
+				if (slot <= 0)
+					slot = rtl.value_inherit[e_value.ITEM_SLOT]
 				if (slot < 0)
 					slot = 0
 				var gwid = 16
