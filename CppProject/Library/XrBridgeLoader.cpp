@@ -632,9 +632,20 @@ namespace CppProject
 			return 0;
 		static std::unordered_map<std::string, uint64_t> s_pngKeys;
 		const QString qpath = (QString)path;
-		const std::string pstd = qpath.toStdString();
+		// S57: cell-crop mode. The item vbuffer UVs are SHEET-relative and
+		// rebuilt per slot (measured rawUV = slot/16), so the design cell is
+		// cropped out of the sheet and the registered rect is the INVERSE
+		// map: baked = -col + raw*gwid lands exactly in [0,1] over the cell.
+		// Call signature in this mode: ux=-col, uy=-row, uw=columns, uh=rows.
+		const bool cellCrop = (uw > 1.001 || uh > 1.001);
+		const int col = (int)(-ux);
+		const int row = (int)(-uy);
+		const std::string pstd = qpath.toStdString() + (cellCrop
+			? "#" + std::to_string(col) + "_" + std::to_string(row)
+			: "");
+		const std::string cacheKey = pstd;
 		uint64_t key = 0;
-		auto it = s_pngKeys.find(pstd);
+		auto it = s_pngKeys.find(cacheKey);
 		if (it != s_pngKeys.end())
 		{
 			key = it->second;
@@ -649,10 +660,23 @@ namespace CppProject
 			}
 			if (img.format() != QImage::Format_RGBA8888)
 				img = img.convertToFormat(QImage::Format_RGBA8888);
+			if (cellCrop)
+			{
+				const int cellW = img.width() / (int)(uw + 0.5);
+				const int cellH = img.height() / (int)(uh + 0.5);
+				const int cx = col * cellW, cy = row * cellH;
+				if (cellW <= 0 || cellH <= 0 || cx < 0 || cy < 0 ||
+					cx + cellW > img.width() || cy + cellH > img.height())
+				{
+					XrDiag("reg_png: cell out of range " + pstd + " col=" + std::to_string(col) + " row=" + std::to_string(row));
+					return 0;
+				}
+				img = img.copy(cx, cy, cellW, cellH);
+			}
 			key = (uint64_t)(IntType)shapeId;
 			if (!XrUploadQImage(img, key))
 				return 0;
-			s_pngKeys[pstd] = key;
+			s_pngKeys[cacheKey] = key;
 			XrDiag("reg_png: uploaded " + pstd + " " + std::to_string(img.width()) + "x" + std::to_string(img.height()));
 		}
 		if (s_regTex2)
