@@ -39,6 +39,7 @@ function lib_startup()
 	globalvar lib_xr_bridge_auto_tex;
 	globalvar lib_xr_bridge_reg_shape;
 	globalvar lib_xr_bridge_reg_shape_frame;
+	globalvar lib_xr_bridge_reg_png;
 globalvar lib_xr_bridge_diag_shape;
 globalvar lib_xr_bridge_diag_m;
 globalvar lib_xr_bridge_set_bg, lib_xr_bridge_set_bg_image;
@@ -93,6 +94,7 @@ globalvar lib_xr_bridge_set_lights_app;
 	lib_xr_bridge_auto_tex = external_define(pathfile, "xr_bridge_auto_tex", dll_cdecl, ty_real, 0)
 	lib_xr_bridge_reg_shape = external_define(pathfile, "xr_bridge_reg_shape", dll_cdecl, ty_real, 2, ty_real, ty_real)
 	lib_xr_bridge_reg_shape_frame = external_define(pathfile, "xr_bridge_reg_shape_frame", dll_cdecl, ty_real, 3, ty_real, ty_real, ty_real)
+	lib_xr_bridge_reg_png = external_define(pathfile, "xr_bridge_reg_png", dll_cdecl, ty_real, 2, ty_real, ty_string)
 	lib_xr_bridge_diag_shape = external_define(pathfile, "xr_bridge_diag_shape", dll_cdecl, ty_real, 4, ty_real, ty_real, ty_real, ty_real)
 	lib_xr_bridge_diag_m = external_define(pathfile, "xr_bridge_diag_m", dll_cdecl, ty_real, 10, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real, ty_real)
 	lib_xr_bridge_set_bg = external_define(pathfile, "xr_bridge_set_bg", dll_cdecl, ty_real, 1, ty_real)
