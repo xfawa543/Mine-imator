@@ -634,11 +634,31 @@ function xr_bridge_register_textures()
 				// the integration, so every mirror/draw-capture route
 				// produced white (the Pupils rendered as a white quad over
 				// the white eyeball). The loader reads the source PNG with
-				// Qt (real alpha) and uploads it with an identity rect.
-				// Resources live in the project folder (new_res copies
-				// them there); fall back to the sprite path if the file
-				// read fails.
-				var ok = external_call(lib_xr_bridge_reg_png, rtl.id, project_folder + "/" + ires.filename)
+				// Qt (real alpha) and uploads it once; the rect selects the
+				// item's design cell inside the sheet (row-major, exactly
+				// like res_load_pack_item_textures: dx=(t mod w)*size,
+				// dy=(t div w)*size) because the item vbuffer UVs are
+				// frame-relative 0-1. Resources live in the project folder
+				// (new_res copies them there); fall back to the sprite path
+				// if the file read fails.
+				var slot = rtl.value_inherit[e_value.ITEM_SLOT]
+				if (slot < 0)
+					slot = 0
+				var gwid = 16
+				var ghei = 16
+				if (!is_undefined(ires.item_sheet_size))
+				{
+					if (array_length(ires.item_sheet_size) >= 2)
+					{
+						gwid = ires.item_sheet_size[0]
+						ghei = ires.item_sheet_size[1]
+					}
+				}
+				var col = slot mod gwid
+				var row = slot div gwid
+				var cw = 1.0 / gwid
+				var ch = 1.0 / ghei
+				var ok = external_call(lib_xr_bridge_reg_png, rtl.id, project_folder + "/" + ires.filename, col * cw, row * ch, cw, ch)
 				if (!ok)
 				{
 					var ispr = ires.item_sheet_texture
