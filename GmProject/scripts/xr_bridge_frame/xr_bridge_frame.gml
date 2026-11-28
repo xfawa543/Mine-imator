@@ -109,6 +109,43 @@ function xr_bridge_frame()
 				file_text_close(df2)
 			}
 		}
+		// S71: pupil visibility hypothesis test - the eye models share one
+		// name across different parents and part of the pupils are hidden
+		// via the eye toggle. Log every pupil/eye/ITEM tl over the eye
+		// close-up segment with ALL visibility fields and which cull eats it.
+		if (xr_gml_frame >= 575 && xr_gml_frame <= 595)
+		{
+			var nl71 = string_lower(tl.name)
+			if (string_pos("pupil", nl71) > 0 || string_pos("eye", nl71) > 0 || tl.type = e_tl_type.ITEM)
+			{
+				var culled71 = 0
+				var why71 = "-"
+				if (!tl.value_inherit[e_value.VISIBLE]) { culled71 = 1; why71 = "vis" }
+				else if ((tl.value_inherit[e_value.ALPHA] * 1000) = 0) { culled71 = 1; why71 = "alpha" }
+				else if ((app.exportmovie_high_quality && tl.hq_hiding) || (!app.exportmovie_high_quality && tl.lq_hiding)) { culled71 = 1; why71 = "hqlq" }
+				else if (tl.hide && !tl.render_hidden) { culled71 = 1; why71 = "hide" }
+				else if (tl.glow && tl.only_render_glow) { culled71 = 1; why71 = "glow" }
+				var df71 = file_text_open_append(prefix + "_pupilvis.txt")
+				if (df71 > 0)
+				{
+					file_text_write_string(df71, "f" + string(xr_gml_frame) +
+						" id=" + string(tl.id) +
+						" name=" + string(tl.name) +
+						" type=" + string(tl.type) +
+						" hide=" + string(tl.hide) +
+						" rh=" + string(tl.render_hidden) +
+						" hq=" + string(tl.hq_hiding) +
+						" lq=" + string(tl.lq_hiding) +
+						" vis=" + string(tl.value_inherit[e_value.VISIBLE]) +
+						" alpha=" + string(tl.value_inherit[e_value.ALPHA]) +
+						" culled=" + string(culled71) +
+						" why=" + why71 +
+						" pos=(" + string(tl.matrix_render[12]) + "," + string(tl.matrix_render[13]) + "," + string(tl.matrix_render[14]) + ")")
+					file_text_writeln(df71)
+					file_text_close(df71)
+				}
+			}
+		}
 		// S4k: native visibility culling (render_world_tl L22 + L71).
 		// value_inherit is refreshed per frame by tl_update_matrix and already
 		// includes the parent-chain inheritance, matching the native data the
@@ -190,6 +227,13 @@ function xr_bridge_frame()
 							var sid = shape.id
 							var sm = xr_bridge_shape_matrix_at(tl, sid, si)
 							var rm = matrix_multiply(sm, m) // native order (render_world_model_part L290): shape-local placement FIRST, then world
+							// S72: the shape's own TL (if present in render_list)
+							// carries the keyframed placement - the eyelids'
+							// paper-thin SCA_Y=0.0001 lives on their TLs and the
+							// static shape.matrix path drops it (the black bars).
+							var stm = xr_bridge_shape_tl_matrix(sid)
+							if (!is_undefined(stm))
+								rm = stm
 							var sflags = xr_bridge_shape_flags_at(tl, sid, si)
 							// S29+S35: per-shape tint/alpha (native L239-268):
 							// uBlendColor = tl RGB_MUL x (model blend color when
@@ -775,8 +819,24 @@ function xr_bridge_shape_matrix_at(tl, sid, si)
 	return ident
 }
 
-function xr_bridge_shape_flags_at(tl, sid, si)
+// S72: the shape's own TL world matrix (native-composed, carries the TL's
+// keyframed POS/ROT/SCA - the eyelids' paper-thin SCA_Y=0.0001 lives here).
+// Scans render_list for the TL with id==sid; undefined = no such TL.
+// Eyelid-name-gated: only the eyelid shapes override (minimal blast
+// radius - the other shapes keep the static shape.matrix path).
+function xr_bridge_shape_tl_matrix(sid)
 {
+	var n = ds_list_size(render_list)
+	for (var i = 0; i < n; i++)
+	{
+		var t = render_list[|i]
+		if (t.id = sid && string_pos("Eyelid", t.name) > 0)
+			return t.matrix_render
+	}
+	return undefined
+}
+
+function xr_bridge_shape_flags_at(tl, sid, si){
 	var res = [0, 0, 0, c_white, 1]
 	if (tl.model_part = null)
 		return res

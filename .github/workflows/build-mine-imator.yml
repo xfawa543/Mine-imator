@@ -19,6 +19,9 @@
 name: build-mine-imator
 
 on:
+  push:
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
